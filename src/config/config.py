@@ -11,19 +11,25 @@ class Configuration:
     # =========================
     DATA_PATH: str = os.path.join("data")
     dataset_classes_path: str = os.path.join(DATA_PATH, "dataset_classes.json")
-    wider_path: str = os.path.join("data", "WIDER_train", "images")
-    dataset_path: str = os.path.join("data", "NaturalImages")
-    all_path: str = os.path.join(dataset_path, "all")
-    train_path: str = os.path.join(dataset_path, "img_train")
-    train_f_path: str = os.path.join(dataset_path, "img_train_f")
-    val_path: str = os.path.join(dataset_path, "img_val")
-    val_f_path: str = os.path.join(dataset_path, "img_val_f")
-    test_path: str = os.path.join(dataset_path, "img_test")
-    test_f_path: str = os.path.join(dataset_path, "img_test_f")
+    viola_jones_path: str = os.path.join(DATA_PATH, "ViolaJones")
+    faces_path: str = os.path.join(viola_jones_path, "face_images")
+    crops_path: str = os.path.join(viola_jones_path, "crops")
+
+    wider_path: str = os.path.join(DATA_PATH, "others", "WIDER_train", "images")
+    # dataset_path: str = os.path.join("data", "NaturalImages")
+    # all_path: str = os.path.join(dataset_path, "all")
+    # train_path: str = os.path.join(dataset_path, "img_train")
+    # train_f_path: str = os.path.join(dataset_path, "img_train_f")
+    # val_path: str = os.path.join(dataset_path, "img_val")
+    # val_f_path: str = os.path.join(dataset_path, "img_val_f")
+    # test_path: str = os.path.join(dataset_path, "img_test")
+    # test_f_path: str = os.path.join(dataset_path, "img_test_f")
 
     MODELS_PATH: str = os.path.join("models")
     best_cnn_model_path: str = os.path.join(MODELS_PATH, "best_cnn_model.ckpt")
     best_ori_model_path: str = os.path.join(MODELS_PATH, "best_ori_model.ckpt")
+    
+    haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
 
     val_split: float = 0.1
     test_split: float = 0.1
@@ -50,8 +56,9 @@ class Configuration:
 
     def __post_init__(self):
         make_dirs([
-            self.train_path, self.val_path, self.test_path, 
-            self.train_f_path, self.val_f_path, self.test_f_path, 
+            self.faces_path, self.crops_path, 
+            # self.val_path, self.test_path, 
+            # self.train_f_path, self.val_f_path, self.test_f_path, 
             self.MODELS_PATH
         ])
 
