@@ -52,35 +52,41 @@ class CascadeClassifier:
         if std_dev <= 0:
             std_dev = 1.0
 
+        inv_window_area = 1.0 / float(H * W)
+
         for stage in self.cascade.stages:
-            if not self._predict_stage(integral_img, stage, std_dev):
+            if not self._predict_stage(integral_img, stage, std_dev, inv_window_area):
                 return False
         
         return True
 
-    def _predict_stage(self, integral_img, stage, std_dev=1.0):
+    def _predict_stage(self, integral_img, stage, std_dev=1.0, inv_window_area=1.0):
         total_sum = 0.0
         for clf in stage.weak_classifiers:
-            feature_val = self._compute_feature(integral_img, clf.feature)
+            if clf.feature is None:
+                continue
+
+            feature_val = self._compute_feature(integral_img, clf.feature, inv_window_area)
 
             norm_thrs = clf.threshold * std_dev
             total_sum += (
                 clf.left_value 
-                if feature_val >= norm_thrs 
+                if feature_val < norm_thrs 
                 else clf.right_value
             )
 
         return total_sum >= stage.threshold
     
-    def _compute_feature(self, integral_img, feature):
+    def _compute_feature(self, integral_img, feature, inv_window_area=1.0):
         feature_sum = 0.0
         for rec in feature.rectangles:
+            # XML rectangle format is x, y, width, height where x is column and y is row.
             rec_sum = get_integral_sum(
                 integral_img, 
-                rec.x, rec.y, 
-                rec.x+rec.width-1, rec.y+rec.height-1
+                rec.y, rec.x,
+                rec.y + rec.height - 1, rec.x + rec.width - 1
             )
             feature_sum += rec_sum * rec.weight
-    
-        return feature_sum
+
+        return feature_sum * inv_window_area
     
