@@ -1,6 +1,11 @@
 import numpy as np
 
-from src.data.filter import get_integral_image, get_integral_sum
+from src.data.filter import (
+    get_integral_image, 
+    get_integral_squared_image,
+    get_integral_sum,
+    get_std_from_integral_images
+)
 from src.data.crops import get_all_image_crops
 from .haar_cascade_parser import HaarCascade
 
@@ -13,12 +18,14 @@ class CascadeClassifier:
     def predict(self, img=None, img_path=None):
         assert img is not None or img_path is not None, "Either img or img_path must be provided"
 
+        print("Getting image crops...")
         crops = get_all_image_crops(
             self.CONFIG, 
             img=img,
             img_path=img_path
         )
 
+        print("Predicting faces...")
         faces = [
             crop
             for crop in crops
@@ -28,15 +35,25 @@ class CascadeClassifier:
         return faces
     
     def _predict_crop(self, crop_img):
+        # Calculate integral images
         integral_img = get_integral_image(crop_img)
+        integral_img_2 = get_integral_squared_image(crop_img)
 
-        # TODO:with integral image
-        std_dev = np.std(crop_img)
+        # Calculate std 
+        H, W = crop_img.shape
+        r1 = np.array([[0]])
+        r2 = np.array([[H - 1]])
+        c1 = np.array([[0]])
+        c2 = np.array([[W - 1]])
+        
+        _, std_dev = get_std_from_integral_images(integral_img, integral_img_2, r1, r2, c1, c2)
+        std_dev = std_dev[0, 0] 
+        
         if std_dev <= 0:
             std_dev = 1.0
 
         for stage in self.cascade.stages:
-            if not self._predict_stage(integral_img, stage):
+            if not self._predict_stage(integral_img, stage, std_dev):
                 return False
         
         return True

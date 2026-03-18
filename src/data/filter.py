@@ -2,7 +2,56 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from src.config import Configuration
 
+def get_std_from_integral_images(
+    integral: np.ndarray, integral_2: np.ndarray, 
+    r1: np.ndarray, r2: np.ndarray, 
+    c1: np.ndarray, c2: np.ndarray
+) -> tuple:
+    """
+    Calculate mean and standard deviation from integral images.
+    
+    Uses vectorized operations with integral and squared integral images
+    to compute statistics efficiently across the entire image.
+    
+    Args:
+        integral: Integral image
+        integral_2: Squared integral image
+        r1, r2: Row start and end indices (vectorized)
+        c1, c2: Column start and end indices (vectorized)
+    
+    Returns:
+        Tuple of (mean, std_dev) arrays
+    """
+    H, W = integral.shape
+    r1m1 = np.clip(r1 - 1, 0, H - 1)
+    c1m1 = np.clip(c1 - 1, 0, W - 1)
+    
+    n_pixels = (r2 - r1 + 1) * (c2 - c1 + 1)
+    
+    def _region_sum(integ):
+        D     = integ[r2,   c2  ]
+        B_raw = integ[r1m1, c2  ]
+        C_raw = integ[r2,   c1m1]
+        A_raw = integ[r1m1, c1m1]
+        B = np.where(r1 > 0,            B_raw, 0)
+        C = np.where(c1 > 0,            C_raw, 0)
+        A = np.where((r1 > 0) & (c1 > 0), A_raw, 0)
+        return D - B - C + A
+    
+    suma   = _region_sum(integral).astype(np.float64)
+    suma_2 = _region_sum(integral_2).astype(np.float64)
+    
+    mean = suma / n_pixels
+    variance = np.maximum((suma_2 - 2 * mean * suma + n_pixels * mean * mean) / n_pixels, 0.0)
+    std_dev = np.sqrt(variance)
+    
+    return mean, std_dev
+
+
 def local_normalize_image(CONFIG: Configuration, img: np.ndarray):
+    """
+    Normalize image locally using integral images for efficient computation.
+    """
     integral   = get_integral_image(img)
     integral_2 = get_integral_squared_image(img)
 
@@ -17,31 +66,10 @@ def local_normalize_image(CONFIG: Configuration, img: np.ndarray):
     c1 = np.maximum(0,     cols - half)[None, :]   # (1, W)
     c2 = np.minimum(W - 1, cols + half)[None, :]
 
-    n_pixels = (r2 - r1 + 1) * (c2 - c1 + 1)      # (H, W)
+    # Calculate mean and std using integral images
+    mu, sig = get_std_from_integral_images(integral, integral_2, r1, r2, c1, c2)
 
-    # Clamp shifted indices so fancy-indexing never goes out of bounds;
-    # the np.where calls below zero-out the values where the condition
-    # requires it (matching the scalar version's boundary logic).
-    r1m1 = np.clip(r1 - 1, 0, H - 1)
-    c1m1 = np.clip(c1 - 1, 0, W - 1)
-
-    def _region_sum(integ):
-        D     = integ[r2,   c2  ]
-        B_raw = integ[r1m1, c2  ]
-        C_raw = integ[r2,   c1m1]
-        A_raw = integ[r1m1, c1m1]
-        B = np.where(r1 > 0,            B_raw, 0)
-        C = np.where(c1 > 0,            C_raw, 0)
-        A = np.where((r1 > 0) & (c1 > 0), A_raw, 0)
-        return D - B - C + A
-
-    suma   = _region_sum(integral).astype(np.float64)
-    suma_2 = _region_sum(integral_2).astype(np.float64)
-
-    mu  = suma / n_pixels
-    var = np.maximum((suma_2 - 2 * mu * suma + n_pixels * mu * mu) / n_pixels, 0.0)
-    sig = np.sqrt(var)
-
+    # Normalize: avoid division by zero
     return np.where(sig < 1e-6, 0.0, (img.astype(np.float64) - mu) / sig)
 
 
