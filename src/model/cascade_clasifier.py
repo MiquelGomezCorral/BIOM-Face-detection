@@ -10,83 +10,311 @@ from src.data.crops import get_all_image_crops
 from .haar_cascade_parser import HaarCascade
 
 
+
+import numpy as np
+import cv2
+
+from .haar_cascade_parser import HaarCascade
+
+
 class CascadeClassifier:
     def __init__(self, CONFIG, cascade: HaarCascade):
         self.CONFIG = CONFIG
         self.cascade = cascade
+        self._precompute_stage_arrays()
 
+    # ------------------------------------------------------------------
+    # Pre-computation: flatten the cascade into plain numpy arrays once,
+    # so the hot path never touches Python objects or attribute lookups.
+    # ------------------------------------------------------------------
+    def _precompute_stage_arrays(self):
+        """
+        Convert the HaarCascade object structure into a list of dicts, each
+        holding numpy arrays for one stage.  Doing this once at init time
+        means the inner loops only touch numpy - no getattr, no Python lists.
+
+        Per stage we store:
+          rect_data  : float32 (n_rects, 5)  → [ry, rx, rh, rw, weight]
+          clf_slices : int32   (n_clf,  2)   → [rect_start, rect_end)
+          clf_thrs   : float64 (n_clf,)
+          clf_lv     : float64 (n_clf,)
+          clf_rv     : float64 (n_clf,)
+          stage_thr  : float scalar
+        """
+        self.stages_arrays = []
+
+        for stage in self.cascade.stages:
+            all_rects = []    # (ry, rx, rh, rw, weight)
+            clf_slices = []   # [start, end) into all_rects
+            clf_thrs = []
+            clf_lv = []
+            clf_rv = []
+
+            for clf in stage.weak_classifiers:
+                if clf.feature is None:
+                    continue
+                start = len(all_rects)
+                for rec in clf.feature.rectangles:
+                    all_rects.append((rec.y, rec.x, rec.height, rec.width, rec.weight))
+                end = len(all_rects)
+                clf_slices.append((start, end))
+                clf_thrs.append(clf.threshold)
+                clf_lv.append(clf.left_value)
+                clf_rv.append(clf.right_value)
+
+            self.stages_arrays.append({
+                "rect_data":  np.array(all_rects,  dtype=np.float32),   # (R, 5)
+                "clf_slices": np.array(clf_slices, dtype=np.int32),      # (C, 2)
+                "clf_thrs":   np.array(clf_thrs,   dtype=np.float64),    # (C,)
+                "clf_lv":     np.array(clf_lv,     dtype=np.float64),    # (C,)
+                "clf_rv":     np.array(clf_rv,     dtype=np.float64),    # (C,)
+                "stage_thr":  float(stage.threshold),
+            })
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
     def predict(self, img=None, img_path=None):
-        assert img is not None or img_path is not None, "Either img or img_path must be provided"
+        assert img is not None or img_path is not None, \
+            "Either img or img_path must be provided"
 
-        print("Getting image crops...")
-        crops = get_all_image_crops(
-            self.CONFIG, 
-            img=img,
-            img_path=img_path
-        )
+        if img is None:
+            flag = cv2.IMREAD_GRAYSCALE if self.CONFIG.gray_scale else cv2.IMREAD_COLOR
+            img = cv2.imread(img_path, flag)
+
+        all_faces = []
+        current_scale = 1.0
+        crop_size = self.CONFIG.crop_size
+        stride = self.CONFIG.stride
 
         print("Predicting faces...")
-        faces = [
-            crop
-            for crop in crops
-            if self._predict_crop(crop["img"])
-        ]
+        while img.shape[0] > crop_size and img.shape[1] > crop_size:
+            faces = self._predict_scale(img, crop_size, stride, current_scale)
+            all_faces.extend(faces)
+
+            new_w = int(img.shape[1] * self.CONFIG.subsample_factor)
+            new_h = int(img.shape[0] * self.CONFIG.subsample_factor)
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            current_scale /= self.CONFIG.subsample_factor
+
+        return all_faces
+
+    # ------------------------------------------------------------------
+    # Core: process one scale level
+    # ------------------------------------------------------------------
+    def _predict_scale(self, img: np.ndarray, crop_size: int,
+                       stride: int, scale: float) -> list:
+        H, W = img.shape[:2]
+
+        # ---- Build padded integral images of the FULL scaled image (once) ----
+        # Padding with a zero row/col at the top-left lets us use the clean formula:
+        #   region_sum(r1,c1,r2,c2) = ii[r2,c2] - ii[r1,c2] - ii[r2,c1] + ii[r1,c1]
+        # where all four indices are in [0, H] x [0, W] – no boundary checks needed.
+
+        base = img.astype(np.int64)
+        ii = np.empty((H + 1, W + 1), dtype=np.int64)
+        ii[0, :] = 0
+        ii[:, 0] = 0
+        ii[1:, 1:] = base.cumsum(axis=0).cumsum(axis=1)
+
+        ii2 = np.empty((H + 1, W + 1), dtype=np.int64)
+        ii2[0, :] = 0
+        ii2[:, 0] = 0
+        ii2[1:, 1:] = (base ** 2).cumsum(axis=0).cumsum(axis=1)
+
+        # ---- Generate all window top-left corners ----
+        rows = np.arange(0, H - crop_size + 1, stride, dtype=np.int32)
+        cols = np.arange(0, W - crop_size + 1, stride, dtype=np.int32)
+        rr, cc = np.meshgrid(rows, cols, indexing="ij")
+        rr = rr.ravel()   # (N,)
+        cc = cc.ravel()   # (N,)
+
+        N = len(rr)
+        if N == 0:
+            return []
+
+        # ---- Compute std_dev for every window in one vectorised pass ----
+        #
+        # For window starting at (r, c) of size S×S:
+        #   padded corners: top-left=(r, c), bottom-right=(r+S, c+S)
+        #   sum = ii[r+S, c+S] - ii[r, c+S] - ii[r+S, c] + ii[r, c]
+
+        n_pixels = crop_size * crop_size  # scalar
+
+        r2 = rr + crop_size   # (N,) – padded bottom row
+        c2 = cc + crop_size   # (N,) – padded right col
+
+        s1 = (ii[r2, c2] - ii[rr, c2] - ii[r2, cc] + ii[rr, cc]).astype(np.float64)
+        s2 = (ii2[r2, c2] - ii2[rr, c2] - ii2[r2, cc] + ii2[rr, cc]).astype(np.float64)
+
+        mean     = s1 / n_pixels
+        variance = np.maximum(s2 / n_pixels - mean * mean, 0.0)
+        std_dev  = np.sqrt(variance)
+        std_dev  = np.where(std_dev <= 0.0, 1.0, std_dev)   # (N,)
+
+        inv_area = 1.0 / float(n_pixels)
+
+        # ---- Cascade: process stages, shrinking the active set each time ----
+        #
+        # active_rr / active_cc / active_std hold only the survivors so far.
+        # After each stage we boolean-mask to the passing windows.
+        # The early stages (which reject ~99 % of windows) do the heavy work,
+        # but later stages automatically operate on far fewer candidates.
+
+        active_rr  = rr
+        active_cc  = cc
+        active_std = std_dev
+
+        for stage in self.stages_arrays:
+            n_active = len(active_rr)
+            if n_active == 0:
+                break
+
+            rect_data  = stage["rect_data"]    # (R, 5) float32
+            clf_slices = stage["clf_slices"]   # (C, 2) int32
+            clf_thrs   = stage["clf_thrs"]     # (C,)   float64
+            clf_lv     = stage["clf_lv"]       # (C,)
+            clf_rv     = stage["clf_rv"]       # (C,)
+            stage_thr  = stage["stage_thr"]
+
+            stage_sum = np.zeros(n_active, dtype=np.float64)
+
+            for clf_idx in range(len(clf_slices)):
+                r_start, r_end = clf_slices[clf_idx]
+
+                # Sum all rectangles for this weak classifier
+                feature_val = np.zeros(n_active, dtype=np.float64)
+                for r_idx in range(r_start, r_end):
+                    ry, rx, rh, rw, weight = rect_data[r_idx]
+                    ry  = int(ry);  rx  = int(rx)
+                    rh  = int(rh);  rw  = int(rw)
+
+                    # Rectangle in the full image for each active window
+                    fr1 = active_rr + ry
+                    fc1 = active_cc + rx
+                    fr2 = fr1 + rh   # padded end row
+                    fc2 = fc1 + rw   # padded end col
+
+                    rect_sum = (
+                        ii[fr2, fc2]
+                        - ii[fr1, fc2]
+                        - ii[fr2, fc1]
+                        + ii[fr1, fc1]
+                    ).astype(np.float64)
+
+                    feature_val += rect_sum * weight
+
+                feature_val *= inv_area
+
+                # Weak classifier vote
+                norm_thr = clf_thrs[clf_idx] * active_std
+                stage_sum += np.where(feature_val < norm_thr,
+                                      clf_lv[clf_idx],
+                                      clf_rv[clf_idx])
+
+            # Reject windows that fail this stage (the cascade gate)
+            mask       = stage_sum >= stage_thr
+            active_rr  = active_rr[mask]
+            active_cc  = active_cc[mask]
+            active_std = active_std[mask]
+
+        # ---- Collect surviving windows as face dicts ----
+        faces = []
+        for r, c in zip(active_rr, active_cc):
+            faces.append({
+                "x":   int(c * scale),
+                "y":   int(r * scale),
+                "w":   int(crop_size * scale),
+                "h":   int(crop_size * scale),
+                "img": np.ascontiguousarray(img[r: r + crop_size,
+                                                c: c + crop_size]),
+            })
 
         return faces
     
-    def _predict_crop(self, crop_img):
-        # Calculate integral images
-        integral_img = get_integral_image(crop_img)
-        integral_img_2 = get_integral_squared_image(crop_img)
 
-        # Calculate std 
-        H, W = crop_img.shape
-        r1 = np.array([[0]])
-        r2 = np.array([[H - 1]])
-        c1 = np.array([[0]])
-        c2 = np.array([[W - 1]])
-        
-        _, std_dev = get_std_from_integral_images(integral_img, integral_img_2, r1, r2, c1, c2)
-        std_dev = std_dev[0, 0] 
-        
-        if std_dev <= 0:
-            std_dev = 1.0
 
-        inv_window_area = 1.0 / float(H * W)
 
-        for stage in self.cascade.stages:
-            if not self._predict_stage(integral_img, stage, std_dev, inv_window_area):
-                return False
-        
-        return True
 
-    def _predict_stage(self, integral_img, stage, std_dev=1.0, inv_window_area=1.0):
-        total_sum = 0.0
-        for clf in stage.weak_classifiers:
-            if clf.feature is None:
-                continue
 
-            feature_val = self._compute_feature(integral_img, clf.feature, inv_window_area)
 
-            norm_thrs = clf.threshold * std_dev
-            total_sum += (
-                clf.left_value 
-                if feature_val < norm_thrs 
-                else clf.right_value
-            )
+# class CascadeClassifier:
+#     def __init__(self, CONFIG, cascade: HaarCascade):
+#         self.CONFIG = CONFIG
+#         self.cascade = cascade
 
-        return total_sum >= stage.threshold
+#     def predict(self, img=None, img_path=None):
+#         assert img is not None or img_path is not None, "Either img or img_path must be provided"
+
+#         print("Getting image crops...")
+#         crops = get_all_image_crops(
+#             self.CONFIG, 
+#             img=img,
+#             img_path=img_path
+#         )
+
+#         print("Predicting faces...")
+#         faces = [
+#             crop
+#             for crop in crops
+#             if self._predict_crop(crop["img"])
+#         ]
+
+#         return faces
     
-    def _compute_feature(self, integral_img, feature, inv_window_area=1.0):
-        feature_sum = 0.0
-        for rec in feature.rectangles:
-            # XML rectangle format is x, y, width, height where x is column and y is row.
-            rec_sum = get_integral_sum(
-                integral_img, 
-                rec.y, rec.x,
-                rec.y + rec.height - 1, rec.x + rec.width - 1
-            )
-            feature_sum += rec_sum * rec.weight
+#     def _predict_crop(self, crop_img):
+#         # Calculate integral images
+#         integral_img = get_integral_image(crop_img)
+#         integral_img_2 = get_integral_squared_image(crop_img)
 
-        return feature_sum * inv_window_area
+#         # Calculate std 
+#         H, W = crop_img.shape
+#         r1 = np.array([[0]])
+#         r2 = np.array([[H - 1]])
+#         c1 = np.array([[0]])
+#         c2 = np.array([[W - 1]])
+        
+#         _, std_dev = get_std_from_integral_images(integral_img, integral_img_2, r1, r2, c1, c2)
+#         std_dev = std_dev[0, 0] 
+        
+#         if std_dev <= 0:
+#             std_dev = 1.0
+
+#         inv_window_area = 1.0 / float(H * W)
+
+#         for stage in self.cascade.stages:
+#             if not self._predict_stage(integral_img, stage, std_dev, inv_window_area):
+#                 return False
+        
+#         return True
+
+#     def _predict_stage(self, integral_img, stage, std_dev=1.0, inv_window_area=1.0):
+#         total_sum = 0.0
+#         for clf in stage.weak_classifiers:
+#             if clf.feature is None:
+#                 continue
+
+#             feature_val = self._compute_feature(integral_img, clf.feature, inv_window_area)
+
+#             norm_thrs = clf.threshold * std_dev
+#             total_sum += (
+#                 clf.left_value 
+#                 if feature_val < norm_thrs 
+#                 else clf.right_value
+#             )
+
+#         return total_sum >= stage.threshold
+    
+#     def _compute_feature(self, integral_img, feature, inv_window_area=1.0):
+#         feature_sum = 0.0
+#         for rec in feature.rectangles:
+#             # XML rectangle format is x, y, width, height where x is column and y is row.
+#             rec_sum = get_integral_sum(
+#                 integral_img, 
+#                 rec.y, rec.x,
+#                 rec.y + rec.height - 1, rec.x + rec.width - 1
+#             )
+#             feature_sum += rec_sum * rec.weight
+
+#         return feature_sum * inv_window_area
     

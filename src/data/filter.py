@@ -1,6 +1,23 @@
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
 from src.config import Configuration
+
+
+# ====================================================================
+#                        Versiones rápidas
+# ====================================================================
+def get_integral_image(img: np.ndarray) -> np.ndarray:
+    return img.astype(np.int64).cumsum(axis=0).cumsum(axis=1)
+
+def get_integral_squared_image(img: np.ndarray) -> np.ndarray:
+    img2 = img.astype(np.int64) ** 2
+    return img2.cumsum(axis=0).cumsum(axis=1)
+
+def get_integral_sum(integral: np.ndarray, x1, y1, x2, y2) -> int:
+    A = integral[x1 - 1, y1 - 1] if (x1 > 0 and y1 > 0) else 0
+    B = integral[x1 - 1, y2] if x1 > 0 else 0
+    C = integral[x2, y1 - 1] if y1 > 0 else 0
+    D = integral[x2, y2]
+    return D - B - C + A
 
 def get_std_from_integral_images(
     integral: np.ndarray, integral_2: np.ndarray, 
@@ -22,24 +39,18 @@ def get_std_from_integral_images(
     Returns:
         Tuple of (mean, std_dev) arrays
     """
-    H, W = integral.shape
-    r1m1 = np.clip(r1 - 1, 0, H - 1)
-    c1m1 = np.clip(c1 - 1, 0, W - 1)
-    
     n_pixels = (r2 - r1 + 1) * (c2 - c1 + 1)
     
-    def _region_sum(integ):
-        D     = integ[r2,   c2  ]
-        B_raw = integ[r1m1, c2  ]
-        C_raw = integ[r2,   c1m1]
-        A_raw = integ[r1m1, c1m1]
-        B = np.where(r1 > 0,            B_raw, 0)
-        C = np.where(c1 > 0,            C_raw, 0)
-        A = np.where((r1 > 0) & (c1 > 0), A_raw, 0)
+    def _vectorized_region_sum(integ):
+        # Vectorized version of get_integral_sum logic
+        D = integ[r2, c2]
+        B = np.where(r1 > 0, integ[r1 - 1, c2], 0)
+        C = np.where(c1 > 0, integ[r2, c1 - 1], 0)
+        A = np.where((r1 > 0) & (c1 > 0), integ[r1 - 1, c1 - 1], 0)
         return D - B - C + A
     
-    suma   = _region_sum(integral).astype(np.float64)
-    suma_2 = _region_sum(integral_2).astype(np.float64)
+    suma   = _vectorized_region_sum(integral).astype(np.float64)
+    suma_2 = _vectorized_region_sum(integral_2).astype(np.float64)
     
     mean = suma / n_pixels
     variance = np.maximum((suma_2 - 2 * mean * suma + n_pixels * mean * mean) / n_pixels, 0.0)
@@ -74,7 +85,9 @@ def local_normalize_image(CONFIG: Configuration, img: np.ndarray):
 
 
 
-
+# ====================================================================
+#                        Versiones lentas
+# ====================================================================
 
 # def local_normalize_image(CONFIG: Configuration, img: np.ndarray):
 #     integral = get_integral_image(img) 
@@ -135,23 +148,8 @@ def local_normalize_image(CONFIG: Configuration, img: np.ndarray):
 #     return (pixel - mu)/sig
 
 
-# Versiones rápidas
-def get_integral_image(img: np.ndarray) -> np.ndarray:
-    return img.astype(np.int64).cumsum(axis=0).cumsum(axis=1)
-
-def get_integral_squared_image(img: np.ndarray) -> np.ndarray:
-    img2 = img.astype(np.int64) ** 2
-    return img2.cumsum(axis=0).cumsum(axis=1)
-
-def get_integral_sum(integral: np.ndarray, x1, y1, x2, y2) -> int:
-    A = integral[x1 - 1, y1 - 1] if (x1 > 0 and y1 > 0) else 0
-    B = integral[x1 - 1, y2] if x1 > 0 else 0
-    C = integral[x2, y1 - 1] if y1 > 0 else 0
-    D = integral[x2, y2]
-    return D - B - C + A
 
 
-# Versiones lentas
 
 # def get_integral_image(img: np.ndarray):
 #     integral = np.zeros_like(img, dtype=np.uint64) 
