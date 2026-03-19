@@ -1,1 +1,5 @@
 opencv-python==4.13.0.92
+pip-chill==1.0.5
+uv==0.10.11
+maikol-utils==0.8.0
+matplotlib==3.10.8

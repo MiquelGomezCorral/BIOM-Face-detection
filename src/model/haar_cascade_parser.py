@@ -107,9 +107,23 @@ class HaarCascadeParser:
         Returns:
             HaarCascade object containing all cascade information
         """
-        cascade_elem = self.root.find('cascade')
-        if cascade_elem is None and self.root.tag == 'cascade':
+        # Handle both formats:
+        # 1. Root is 'cascade' directly
+        # 2. Root is 'opencv_storage' and cascade is first child
+        cascade_elem = None
+        
+        if self.root.tag == 'cascade':
             cascade_elem = self.root
+        elif self.root.tag == 'opencv_storage':
+            # Find the first child with cascade data
+            for child in self.root:
+                if 'type_id' in child.attrib and 'classifier' in child.attrib['type_id']:
+                    cascade_elem = child
+                    break
+        else:
+            # Try to find 'cascade' as a child
+            cascade_elem = self.root.find('cascade')
+        
         if cascade_elem is None:
             raise ValueError("No 'cascade' element found in XML")
         
@@ -119,11 +133,18 @@ class HaarCascadeParser:
         feature_type_elem = cascade_elem.find('featureType')
         feature_type = feature_type_elem.text if feature_type_elem is not None else 'HAAR'
         
-        height_elem = cascade_elem.find('height')
-        height = int(height_elem.text) if height_elem is not None else 24
-        
-        width_elem = cascade_elem.find('width')
-        width = int(width_elem.text) if width_elem is not None else 24
+        # Handle 'size' element (height width format) and separate height/width
+        size_elem = cascade_elem.find('size')
+        if size_elem is not None and size_elem.text:
+            parts = size_elem.text.split()
+            width = int(parts[0]) if len(parts) > 0 else 24
+            height = int(parts[1]) if len(parts) > 1 else 24
+        else:
+            height_elem = cascade_elem.find('height')
+            height = int(height_elem.text) if height_elem is not None else 24
+            
+            width_elem = cascade_elem.find('width')
+            width = int(width_elem.text) if width_elem is not None else 24
         
         stage_num_elem = cascade_elem.find('stageNum')
         stage_count = int(stage_num_elem.text) if stage_num_elem is not None else 0
@@ -197,6 +218,7 @@ class HaarCascadeParser:
     def _parse_stages(self, cascade_elem, features: Dict[int, Feature]) -> List[Stage]:
         """
         Parse all stages from the cascade.
+        Handles both old format (weakClassifiers) and new format (trees).
         
         Args:
             cascade_elem: The cascade XML element
@@ -214,16 +236,16 @@ class HaarCascadeParser:
         stage_id = 0
         for stage_elem in stages_elem.findall('_'):
             # Parse stage threshold
-            threshold_elem = stage_elem.find('stageThreshold')
+            threshold_elem = stage_elem.find('stage_threshold')
             threshold = float(threshold_elem.text) if threshold_elem is not None else 0.0
             
             max_weak_elem = stage_elem.find('maxWeakCount')
             max_weak_count = int(max_weak_elem.text) if max_weak_elem is not None else None
             
-            # Parse weak classifiers
-            weak_classifiers = self._parse_weak_classifiers(
-                stage_elem, features
-            )
+            # Try new format first (trees), then fall back to old format (weakClassifiers)
+            weak_classifiers = self._parse_weak_classifiers_trees(stage_elem, features)
+            if not weak_classifiers:
+                weak_classifiers = self._parse_weak_classifiers(stage_elem, features)
             
             stage = Stage(
                 stage_id=stage_id,
@@ -242,7 +264,7 @@ class HaarCascadeParser:
         features: Dict[int, Feature]
     ) -> List[WeakClassifier]:
         """
-        Parse weak classifiers from a stage.
+        Parse weak classifiers from a stage (old format).
         
         Args:
             stage_elem: The stage XML element
@@ -288,6 +310,91 @@ class HaarCascadeParser:
                 left_value=left_value,
                 right_value=right_value,
                 feature=features.get(feature_id, None)
+            )
+            weak_classifiers.append(weak_clf)
+            classifier_id += 1
+        
+        return weak_classifiers
+    
+    def _parse_weak_classifiers_trees(
+        self,
+        stage_elem,
+        features: Dict[int, Feature]
+    ) -> List[WeakClassifier]:
+        """
+        Parse weak classifiers from a stage (new tree-based format).
+        
+        Args:
+            stage_elem: The stage XML element
+            features: Dictionary of features
+            
+        Returns:
+            List of WeakClassifier objects
+        """
+        weak_classifiers = []
+        trees_elem = stage_elem.find('trees')
+        
+        if trees_elem is None:
+            return weak_classifiers
+        
+        classifier_id = 0
+        feature_id_counter = 0
+        
+        for tree_elem in trees_elem.findall('_'):
+            # Each tree contains a single weak classifier
+            # with embedded feature, threshold, and leaf values
+            
+            # Find the actual classifier element (nested "_" within the tree)
+            classifier_node = tree_elem.find('_')
+            if classifier_node is None:
+                classifier_node = tree_elem
+            
+            # Parse feature
+            feature_elem = classifier_node.find('feature')
+            rectangles = []
+            feature_id_for_clf = feature_id_counter
+            
+            if feature_elem is not None:
+                rects_elem = feature_elem.find('rects')
+                if rects_elem is not None:
+                    for rect_elem in rects_elem.findall('_'):
+                        if rect_elem.text is None:
+                            continue
+                        rect_text = rect_elem.text.strip()
+                        parts = rect_text.split()
+                        
+                        if len(parts) >= 5:
+                            x = int(parts[0])
+                            y = int(parts[1])
+                            width = int(parts[2])
+                            height = int(parts[3])
+                            weight = float(parts[4])
+                            
+                            rectangles.append(Rectangle(x, y, width, height, weight))
+                
+                # Store the feature
+                if rectangles:
+                    features[feature_id_for_clf] = Feature(feature_id_for_clf, rectangles)
+                    feature_id_counter += 1
+            
+            # Parse threshold
+            threshold_elem = classifier_node.find('threshold')
+            threshold = float(threshold_elem.text) if threshold_elem is not None else 0.0
+            
+            # Parse leaf values
+            left_val_elem = classifier_node.find('left_val')
+            right_val_elem = classifier_node.find('right_val')
+            
+            left_value = float(left_val_elem.text) if left_val_elem is not None else 0.0
+            right_value = float(right_val_elem.text) if right_val_elem is not None else 0.0
+            
+            weak_clf = WeakClassifier(
+                classifier_id=classifier_id,
+                feature_id=feature_id_for_clf,
+                threshold=threshold,
+                left_value=left_value,
+                right_value=right_value,
+                feature=features.get(feature_id_for_clf, None)
             )
             weak_classifiers.append(weak_clf)
             classifier_id += 1
@@ -355,5 +462,6 @@ def load_cascade(cascade_path: str) -> HaarCascade:
     Returns:
         Parsed HaarCascade object
     """
+    print(f"Loading Haar cascade from: {cascade_path}")
     parser = HaarCascadeParser(cascade_path)
     return parser.parse()

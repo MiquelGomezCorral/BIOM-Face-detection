@@ -87,7 +87,6 @@ class CascadeClassifier:
         crop_size = self.CONFIG.crop_size
         stride = self.CONFIG.stride
 
-        print("Predicting faces...")
         while img.shape[0] > crop_size and img.shape[1] > crop_size:
             faces = self._predict_scale(img, crop_size, stride, current_scale)
             all_faces.extend(faces)
