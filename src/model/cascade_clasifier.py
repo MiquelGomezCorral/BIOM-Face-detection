@@ -1,4 +1,5 @@
 import numpy as np
+import cv2
 
 from src.data.filter import (
     get_integral_image, 
@@ -7,12 +8,6 @@ from src.data.filter import (
     get_std_from_integral_images
 )
 from src.data.crops import get_all_image_crops
-from .haar_cascade_parser import HaarCascade
-
-
-
-import numpy as np
-import cv2
 
 from .haar_cascade_parser import HaarCascade
 
@@ -23,10 +18,10 @@ class CascadeClassifier:
         self.cascade = cascade
         self._precompute_stage_arrays()
 
-    # ------------------------------------------------------------------
+    # =======================================================================
     # Pre-computation: flatten the cascade into plain numpy arrays once,
     # so the hot path never touches Python objects or attribute lookups.
-    # ------------------------------------------------------------------
+    # =======================================================================
     def _precompute_stage_arrays(self):
         """
         Convert the HaarCascade object structure into a list of dicts, each
@@ -71,9 +66,9 @@ class CascadeClassifier:
                 "stage_thr":  float(stage.threshold),
             })
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+    # =======================================================================
+    #                               PREDICT
+    # =======================================================================
     def predict(self, img=None, img_path=None):
         assert img is not None or img_path is not None, \
             "Either img or img_path must be provided"
@@ -98,14 +93,17 @@ class CascadeClassifier:
 
         return all_faces
 
-    # ------------------------------------------------------------------
-    # Core: process one scale level
-    # ------------------------------------------------------------------
-    def _predict_scale(self, img: np.ndarray, crop_size: int,
-                       stride: int, scale: float) -> list:
+    # =======================================================================
+    #                       Process on a scale level
+    # =======================================================================
+    def _predict_scale(
+        self, 
+        img: np.ndarray, crop_size: int,
+        stride: int, scale: float
+    ) -> list:
         H, W = img.shape[:2]
 
-        # ---- Build padded integral images of the FULL scaled image (once) ----
+        # ========= Build padded integral images of the FULL scaled image (once) =========
         # Padding with a zero row/col at the top-left lets us use the clean formula:
         #   region_sum(r1,c1,r2,c2) = ii[r2,c2] - ii[r1,c2] - ii[r2,c1] + ii[r1,c1]
         # where all four indices are in [0, H] x [0, W] – no boundary checks needed.
@@ -121,7 +119,7 @@ class CascadeClassifier:
         ii2[:, 0] = 0
         ii2[1:, 1:] = (base ** 2).cumsum(axis=0).cumsum(axis=1)
 
-        # ---- Generate all window top-left corners ----
+        # ========= Generate all window top-left corners =========
         rows = np.arange(0, H - crop_size + 1, stride, dtype=np.int32)
         cols = np.arange(0, W - crop_size + 1, stride, dtype=np.int32)
         rr, cc = np.meshgrid(rows, cols, indexing="ij")
@@ -132,7 +130,7 @@ class CascadeClassifier:
         if N == 0:
             return []
 
-        # ---- Compute std_dev for every window in one vectorised pass ----
+        # ========= Compute std_dev for every window in one vectorised pass =========
         #
         # For window starting at (r, c) of size S×S:
         #   padded corners: top-left=(r, c), bottom-right=(r+S, c+S)
@@ -153,7 +151,7 @@ class CascadeClassifier:
 
         inv_area = 1.0 / float(n_pixels)
 
-        # ---- Cascade: process stages, shrinking the active set each time ----
+        # ========= Cascade: process stages, shrinking the active set each time =========
         #
         # active_rr / active_cc / active_std hold only the survivors so far.
         # After each stage we boolean-mask to the passing windows.
@@ -217,7 +215,7 @@ class CascadeClassifier:
             active_cc  = active_cc[mask]
             active_std = active_std[mask]
 
-        # ---- Collect surviving windows as face dicts ----
+        # ========= Collect surviving windows as face dicts =========
         faces = []
         for r, c in zip(active_rr, active_cc):
             faces.append({
@@ -231,9 +229,6 @@ class CascadeClassifier:
 
         return faces
     
-
-
-
 
 
 
