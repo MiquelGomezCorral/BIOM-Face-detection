@@ -8,6 +8,15 @@ from src.model import load_cascade, CascadeClassifier
 from src.config import Configuration
 
 
+def start_detect_camera(CONFIG: Configuration):
+    # Disable Qt GUI backend if no display is available
+    if not os.environ.get('DISPLAY'):
+        cv2.setUseOptimized(True)
+        # Force use of non-GUI backend for headless environments
+        os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+
+    main(CONFIG)
+
 def draw_boxes(img, faces):
     """Draw bounding boxes on detected faces"""
     for crop in faces:
@@ -78,19 +87,3 @@ def main(CONFIG):
     # Cleanup
     vc.release()
     cv2.destroyAllWindows()
-
-
-if __name__ == '__main__':
-    # Disable Qt GUI backend if no display is available
-    if not os.environ.get('DISPLAY'):
-        cv2.setUseOptimized(True)
-        # Force use of non-GUI backend for headless environments
-        os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-
-    # Configuration
-    CONFIG = Configuration(
-        crop_size=24,
-        stride=6
-    )
-
-    main(CONFIG)

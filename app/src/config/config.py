@@ -9,7 +9,7 @@ class Configuration:
     seed: int = 42
 
     # =========================
-    DATA_PATH: str = os.path.join("data")
+    DATA_PATH: str = os.path.join("..", "data")
     dataset_classes_path: str = os.path.join(DATA_PATH, "dataset_classes.json")
     viola_jones_path: str = os.path.join(DATA_PATH, "ViolaJones")
     faces_path: str = os.path.join(viola_jones_path, "face_images")
@@ -25,7 +25,7 @@ class Configuration:
     # test_path: str = os.path.join(dataset_path, "img_test")
     # test_f_path: str = os.path.join(dataset_path, "img_test_f")
 
-    MODELS_PATH: str = os.path.join("models")
+    MODELS_PATH: str = os.path.join("..", "models")
     best_cnn_model_path: str = os.path.join(MODELS_PATH, "best_cnn_model.ckpt")
     best_ori_model_path: str = os.path.join(MODELS_PATH, "best_ori_model.ckpt")
     
