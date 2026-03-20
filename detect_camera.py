@@ -35,7 +35,7 @@ def main(CONFIG):
     # Optional: Set camera resolution for better performance
     # vc.set(cv2.CAP_PROP_FRAME_WIDTH, 1200)
     # vc.set(cv2.CAP_PROP_FRAME_HEIGHT, 1200)
-    # vc.set(cv2.CAP_PROP_FPS, 30)
+    vc.set(cv2.CAP_PROP_FPS, 30)
     
     frame_count = 0
     print("Camera started. Press 'q' or ESC to quit.")
