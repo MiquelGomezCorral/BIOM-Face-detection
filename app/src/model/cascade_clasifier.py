@@ -274,83 +274,83 @@ class CascadeClassifier:
 
 
 
-# class CascadeClassifier:
-#     def __init__(self, CONFIG, cascade: HaarCascade):
-#         self.CONFIG = CONFIG
-#         self.cascade = cascade
+class SlowCascadeClassifier:
+    def __init__(self, CONFIG, cascade: HaarCascade):
+        self.CONFIG = CONFIG
+        self.cascade = cascade
 
-#     def predict(self, img=None, img_path=None):
-#         assert img is not None or img_path is not None, "Either img or img_path must be provided"
+    def predict(self, img=None, img_path=None):
+        assert img is not None or img_path is not None, "Either img or img_path must be provided"
 
-#         print("Getting image crops...")
-#         crops = get_all_image_crops(
-#             self.CONFIG, 
-#             img=img,
-#             img_path=img_path
-#         )
+        print("Getting image crops...")
+        crops = get_all_image_crops(
+            self.CONFIG, 
+            img=img,
+            img_path=img_path
+        )
 
-#         print("Predicting faces...")
-#         faces = [
-#             crop
-#             for crop in crops
-#             if self._predict_crop(crop["img"])
-#         ]
+        print("Predicting faces...")
+        faces = [
+            crop
+            for crop in crops
+            if self._predict_crop(crop["img"])
+        ]
 
-#         return faces
+        return faces
     
-#     def _predict_crop(self, crop_img):
-#         # Calculate integral images
-#         integral_img = get_integral_image(crop_img)
-#         integral_img_2 = get_integral_squared_image(crop_img)
+    def _predict_crop(self, crop_img):
+        # Calculate integral images
+        integral_img = get_integral_image(crop_img)
+        integral_img_2 = get_integral_squared_image(crop_img)
 
-#         # Calculate std 
-#         H, W = crop_img.shape
-#         r1 = np.array([[0]])
-#         r2 = np.array([[H - 1]])
-#         c1 = np.array([[0]])
-#         c2 = np.array([[W - 1]])
+        # Calculate std 
+        H, W = crop_img.shape
+        r1 = np.array([[0]])
+        r2 = np.array([[H - 1]])
+        c1 = np.array([[0]])
+        c2 = np.array([[W - 1]])
         
-#         _, std_dev = get_std_from_integral_images(integral_img, integral_img_2, r1, r2, c1, c2)
-#         std_dev = std_dev[0, 0] 
+        _, std_dev = get_std_from_integral_images(integral_img, integral_img_2, r1, r2, c1, c2)
+        std_dev = std_dev[0, 0] 
         
-#         if std_dev <= 0:
-#             std_dev = 1.0
+        if std_dev <= 0:
+            std_dev = 1.0
 
-#         inv_window_area = 1.0 / float(H * W)
+        inv_window_area = 1.0 / float(H * W)
 
-#         for stage in self.cascade.stages:
-#             if not self._predict_stage(integral_img, stage, std_dev, inv_window_area):
-#                 return False
+        for stage in self.cascade.stages:
+            if not self._predict_stage(integral_img, stage, std_dev, inv_window_area):
+                return False
         
-#         return True
+        return True
 
-#     def _predict_stage(self, integral_img, stage, std_dev=1.0, inv_window_area=1.0):
-#         total_sum = 0.0
-#         for clf in stage.weak_classifiers:
-#             if clf.feature is None:
-#                 continue
+    def _predict_stage(self, integral_img, stage, std_dev=1.0, inv_window_area=1.0):
+        total_sum = 0.0
+        for clf in stage.weak_classifiers:
+            if clf.feature is None:
+                continue
 
-#             feature_val = self._compute_feature(integral_img, clf.feature, inv_window_area)
+            feature_val = compute_feature(integral_img, clf.feature) * inv_window_area
 
-#             norm_thrs = clf.threshold * std_dev
-#             total_sum += (
-#                 clf.left_value 
-#                 if feature_val < norm_thrs 
-#                 else clf.right_value
-#             )
+            norm_thrs = clf.threshold * std_dev
+            total_sum += (
+                clf.left_value 
+                if feature_val < norm_thrs 
+                else clf.right_value
+            )
 
-#         return total_sum >= stage.threshold
+        return total_sum >= stage.threshold
     
-#     def _compute_feature(self, integral_img, feature, inv_window_area=1.0):
-#         feature_sum = 0.0
-#         for rec in feature.rectangles:
-#             # XML rectangle format is x, y, width, height where x is column and y is row.
-#             rec_sum = get_integral_sum(
-#                 integral_img, 
-#                 rec.y, rec.x,
-#                 rec.y + rec.height - 1, rec.x + rec.width - 1
-#             )
-#             feature_sum += rec_sum * rec.weight
+def compute_feature(integral_img, feature):
+    feature_sum = 0.0
+    for rec in feature.rectangles:
+        # XML rectangle format is x, y, width, height where x is column and y is row.
+        rec_sum = get_integral_sum(
+            integral_img, 
+            rec.y, rec.x,
+            rec.y + rec.height - 1, rec.x + rec.width - 1
+        )
+        feature_sum += rec_sum * rec.weight
 
-#         return feature_sum * inv_window_area
+    return feature_sum
     
