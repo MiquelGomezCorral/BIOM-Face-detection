@@ -60,6 +60,7 @@ class CascadeClassifier:
             self.stages_arrays.append({
                 "rect_data":  np.array(all_rects,  dtype=np.float32),   # (R, 5)
                 "clf_slices": np.array(clf_slices, dtype=np.int32),      # (C, 2)
+                "clf_starts": np.array([sl[0] for sl in clf_slices], dtype=np.int64),
                 "clf_thrs":   np.array(clf_thrs,   dtype=np.float64),    # (C,)
                 "clf_lv":     np.array(clf_lv,     dtype=np.float64),    # (C,)
                 "clf_rv":     np.array(clf_rv,     dtype=np.float64),    # (C,)
@@ -91,7 +92,21 @@ class CascadeClassifier:
             img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
             current_scale /= self.CONFIG.subsample_factor
 
-        return all_faces
+        if not all_faces:
+            return []
+        
+        # ========================== Non-maximum suppression ==========================
+        rects = [[f["x"], f["y"], f["w"], f["h"]] for f in all_faces]
+        rects_doubled = rects + rects
+        grouped, _ = cv2.groupRectangles(rects_doubled, groupThreshold=2, eps=0.3)
+
+        if len(grouped) == 0:
+            return []
+
+        return [
+            {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+            for x, y, w, h in grouped
+        ]
 
     # =======================================================================
     #                       Process on a scale level
@@ -169,45 +184,74 @@ class CascadeClassifier:
 
             rect_data  = stage["rect_data"]    # (R, 5) float32
             clf_slices = stage["clf_slices"]   # (C, 2) int32
+            clf_starts = stage["clf_starts"]   # (C,) int64
             clf_thrs   = stage["clf_thrs"]     # (C,)   float64
             clf_lv     = stage["clf_lv"]       # (C,)
             clf_rv     = stage["clf_rv"]       # (C,)
             stage_thr  = stage["stage_thr"]
 
-            stage_sum = np.zeros(n_active, dtype=np.float64)
+            R = rect_data.shape[0]
 
-            for clf_idx in range(len(clf_slices)):
-                r_start, r_end = clf_slices[clf_idx]
+            if n_active * R > 20_000_000:
+                stage_sum = np.zeros(n_active, dtype=np.float64)
 
-                # Sum all rectangles for this weak classifier
-                feature_val = np.zeros(n_active, dtype=np.float64)
-                for r_idx in range(r_start, r_end):
-                    ry, rx, rh, rw, weight = rect_data[r_idx]
-                    ry  = int(ry);  rx  = int(rx)
-                    rh  = int(rh);  rw  = int(rw)
+                for clf_idx in range(len(clf_slices)):
+                    r_start, r_end = clf_slices[clf_idx]
 
-                    # Rectangle in the full image for each active window
-                    fr1 = active_rr + ry
-                    fc1 = active_cc + rx
-                    fr2 = fr1 + rh   # padded end row
-                    fc2 = fc1 + rw   # padded end col
+                    feature_val = np.zeros(n_active, dtype=np.float64)
+                    for r_idx in range(r_start, r_end):
+                        ry, rx, rh, rw, weight = rect_data[r_idx]
+                        ry = int(ry)
+                        rx = int(rx)
+                        rh = int(rh)
+                        rw = int(rw)
 
-                    rect_sum = (
-                        ii[fr2, fc2]
-                        - ii[fr1, fc2]
-                        - ii[fr2, fc1]
-                        + ii[fr1, fc1]
-                    ).astype(np.float64)
+                        fr1 = active_rr + ry
+                        fc1 = active_cc + rx
+                        fr2 = fr1 + rh
+                        fc2 = fc1 + rw
 
-                    feature_val += rect_sum * weight
+                        rect_sum = (
+                            ii[fr2, fc2]
+                            - ii[fr1, fc2]
+                            - ii[fr2, fc1]
+                            + ii[fr1, fc1]
+                        ).astype(np.float64)
 
-                feature_val *= inv_area
+                        feature_val += rect_sum * weight
 
-                # Weak classifier vote
-                norm_thr = clf_thrs[clf_idx] * active_std
-                stage_sum += np.where(feature_val < norm_thr,
-                                      clf_lv[clf_idx],
-                                      clf_rv[clf_idx])
+                    feature_val *= inv_area
+                    norm_thr = clf_thrs[clf_idx] * active_std
+                    stage_sum += np.where(
+                        feature_val < norm_thr,
+                        clf_lv[clf_idx],
+                        clf_rv[clf_idx],
+                    )
+            else:
+                ry = rect_data[:, 0].astype(np.int32)
+                rx = rect_data[:, 1].astype(np.int32)
+                rh = rect_data[:, 2].astype(np.int32)
+                rw = rect_data[:, 3].astype(np.int32)
+                weights = rect_data[:, 4].astype(np.float64)
+
+                fr1 = active_rr[:, None] + ry[None, :]
+                fc1 = active_cc[:, None] + rx[None, :]
+                fr2 = fr1 + rh[None, :]
+                fc2 = fc1 + rw[None, :]
+
+                rect_sums = (
+                    ii[fr2, fc2]
+                    - ii[fr1, fc2]
+                    - ii[fr2, fc1]
+                    + ii[fr1, fc1]
+                ).astype(np.float64)
+
+                weighted = rect_sums * weights[None, :]
+                feature_vals = np.add.reduceat(weighted, clf_starts, axis=1) * inv_area
+
+                norm_thrs = clf_thrs[None, :] * active_std[:, None]
+                votes = np.where(feature_vals < norm_thrs, clf_lv[None, :], clf_rv[None, :])
+                stage_sum = votes.sum(axis=1)
 
             # Reject windows that fail this stage (the cascade gate)
             mask       = stage_sum >= stage_thr
@@ -223,8 +267,6 @@ class CascadeClassifier:
                 "y":   int(r * scale),
                 "w":   int(crop_size * scale),
                 "h":   int(crop_size * scale),
-                "img": np.ascontiguousarray(img[r: r + crop_size,
-                                                c: c + crop_size]),
             })
 
         return faces

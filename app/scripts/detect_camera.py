@@ -7,6 +7,8 @@ import cv2
 from src.model import load_cascade, CascadeClassifier
 from src.config import Configuration
 
+DETECT_WIDTH = 320
+
 
 def start_detect_camera(CONFIG: Configuration):
     # Disable Qt GUI backend if no display is available
@@ -42,8 +44,8 @@ def main(CONFIG):
         return
     
     # Optional: Set camera resolution for better performance
-    # vc.set(cv2.CAP_PROP_FRAME_WIDTH, 1200)
-    # vc.set(cv2.CAP_PROP_FRAME_HEIGHT, 1200)
+    # vc.set(cv2.CAP_PROP_FRAME_WIDTH, 2048)
+    # vc.set(cv2.CAP_PROP_FRAME_HEIGHT, 2048)
     vc.set(cv2.CAP_PROP_FPS, 30)
     
     frame_count = 0
@@ -56,9 +58,31 @@ def main(CONFIG):
             print("ERROR: Failed to read frame")
             break
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        detect_width = min(DETECT_WIDTH, gray.shape[1])
+        scale_factor = detect_width / float(gray.shape[1])
+        if scale_factor < 1.0:
+            small = cv2.resize(
+                gray,
+                (detect_width, int(gray.shape[0] * scale_factor)),
+                interpolation=cv2.INTER_AREA,
+            )
+            faces_small = classifier.predict(img=small)
+            inv = 1.0 / scale_factor
+            faces = [
+                {
+                    **f,
+                    "x": int(f["x"] * inv),
+                    "y": int(f["y"] * inv),
+                    "w": int(f["w"] * inv),
+                    "h": int(f["h"] * inv),
+                }
+                for f in faces_small
+            ]
+        else:
+            faces = classifier.predict(img=gray)
         
         # ========================== Detect faces ==========================
-        faces = classifier.predict(img=gray)
         print(f"Frame {frame_count}: Detected {len(faces)} faces")
 
         # ========================== Draw faces ==========================
