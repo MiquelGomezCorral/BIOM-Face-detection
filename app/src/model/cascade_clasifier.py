@@ -70,7 +70,7 @@ class CascadeClassifier:
     # =======================================================================
     #                               PREDICT
     # =======================================================================
-    def predict(self, img=None, img_path=None):
+    def predict(self, img=None, img_path=None, return_candidate_count: bool = False):
         assert img is not None or img_path is not None, \
             "Either img or img_path must be provided"
 
@@ -79,12 +79,14 @@ class CascadeClassifier:
             img = cv2.imread(img_path, flag)
 
         all_faces = []
+        total_candidate_crops = 0
         current_scale = 1.0
         crop_size = self.CONFIG.crop_size
         stride = self.CONFIG.stride
 
         while img.shape[0] > crop_size and img.shape[1] > crop_size:
-            faces = self._predict_scale(img, crop_size, stride, current_scale)
+            faces, n_candidates = self._predict_scale(img, crop_size, stride, current_scale)
+            total_candidate_crops += n_candidates
             all_faces.extend(faces)
 
             new_w = int(img.shape[1] * self.CONFIG.subsample_factor)
@@ -93,6 +95,8 @@ class CascadeClassifier:
             current_scale /= self.CONFIG.subsample_factor
 
         if not all_faces:
+            if return_candidate_count:
+                return [], total_candidate_crops
             return []
         
         # ========================== Non-maximum suppression ==========================
@@ -101,12 +105,18 @@ class CascadeClassifier:
         grouped, _ = cv2.groupRectangles(rects_doubled, groupThreshold=2, eps=0.3)
 
         if len(grouped) == 0:
+            if return_candidate_count:
+                return [], total_candidate_crops
             return []
 
-        return [
+        grouped_faces = [
             {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
             for x, y, w, h in grouped
         ]
+
+        if return_candidate_count:
+            return grouped_faces, total_candidate_crops
+        return grouped_faces
 
     # =======================================================================
     #                       Process on a scale level
@@ -115,7 +125,7 @@ class CascadeClassifier:
         self, 
         img: np.ndarray, crop_size: int,
         stride: int, scale: float
-    ) -> list:
+    ) -> tuple[list, int]:
         H, W = img.shape[:2]
 
         # ========= Build padded integral images of the FULL scaled image (once) =========
@@ -143,7 +153,7 @@ class CascadeClassifier:
 
         N = len(rr)
         if N == 0:
-            return []
+            return [], 0
 
         # ========= Compute std_dev for every window in one vectorised pass =========
         #
@@ -269,7 +279,7 @@ class CascadeClassifier:
                 "h":   int(crop_size * scale),
             })
 
-        return faces
+        return faces, N
     
 
 
@@ -279,7 +289,7 @@ class SlowCascadeClassifier:
         self.CONFIG = CONFIG
         self.cascade = cascade
 
-    def predict(self, img=None, img_path=None):
+    def predict(self, img=None, img_path=None, return_candidate_count: bool = False):
         assert img is not None or img_path is not None, "Either img or img_path must be provided"
 
         print("Getting image crops...")
@@ -296,6 +306,8 @@ class SlowCascadeClassifier:
             if self._predict_crop(crop["img"])
         ]
 
+        if return_candidate_count:
+            return faces, len(crops)
         return faces
     
     def _predict_crop(self, crop_img):

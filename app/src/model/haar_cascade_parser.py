@@ -7,9 +7,13 @@ Extracts stages, weak classifiers, features, and thresholds.
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import Any, Dict, List, Sequence, Tuple
 import os
 
+
+# =====================================================================
+#                           HaarCascade 
+# =====================================================================
 
 @dataclass
 class Rectangle:
@@ -82,6 +86,11 @@ class HaarCascade:
                 f"{len(self.stages)} stages, "
                 f"{len(self.features)} features")
 
+
+
+# =====================================================================
+#                   HaarCascade from pretrained XML 
+# =====================================================================
 
 class HaarCascadeParser:
     """Parser for Haar Cascade XML files."""
@@ -465,3 +474,128 @@ def load_cascade(cascade_path: str) -> HaarCascade:
     print(f"Loading Haar cascade from: {cascade_path}")
     parser = HaarCascadeParser(cascade_path)
     return parser.parse()
+
+
+
+# =====================================================================
+#                   HaarCascade from Adaboost 
+# =====================================================================
+
+
+def _extract_stump_params(estimator: Any) -> Tuple[int, float, float, float]:
+    """Extract feature index, threshold and branch scores from a depth-1 sklearn tree."""
+    tree = getattr(estimator, "tree_", None)
+    if tree is None:
+        raise ValueError("Estimator does not expose a tree_ attribute")
+
+    if tree.node_count < 3:
+        raise ValueError("Only depth-1 decision stumps are supported")
+
+    root = 0
+    feature_id = int(tree.feature[root])
+    threshold = float(tree.threshold[root])
+    if feature_id < 0:
+        raise ValueError("Root node does not split on a valid feature")
+
+    left_child = int(tree.children_left[root])
+    right_child = int(tree.children_right[root])
+
+    left_dist = tree.value[left_child][0]
+    right_dist = tree.value[right_child][0]
+
+    left_label = int(left_dist.argmax())
+    right_label = int(right_dist.argmax())
+
+    left_score = 1.0 if left_label == 1 else -1.0
+    right_score = 1.0 if right_label == 1 else -1.0
+
+    return feature_id, threshold, left_score, right_score
+
+
+def build_haar_cascade_from_stages(
+    stages_output: Sequence[Tuple[Any, float]],
+    all_features: Sequence[Feature],
+    width: int = 24,
+    height: int = 24,
+    cascade_type: str = "trained_python_cascade",
+    feature_type: str = "HAAR",
+) -> HaarCascade:
+    """
+    Convert training output [(AdaBoostClassifier, stage_threshold), ...] into HaarCascade.
+
+    This mirrors the object shape produced by HaarCascadeParser.parse(), but builds
+    it from sklearn-trained stages instead of XML.
+    """
+    cascade_stages: List[Stage] = []
+    features_map: Dict[int, Feature] = {}
+    max_weak_count = 0
+
+    for stage_id, stage_data in enumerate(stages_output):
+        if len(stage_data) != 2:
+            raise ValueError(
+                "Each stage item must be a tuple: (trained_classifier, stage_threshold)"
+            )
+
+        clf, stage_threshold = stage_data
+        weak_classifiers: List[WeakClassifier] = []
+
+        estimators = getattr(clf, "estimators_", None)
+        est_weights = getattr(clf, "estimator_weights_", None)
+        if estimators is None or est_weights is None:
+            raise ValueError("Classifier must expose estimators_ and estimator_weights_")
+
+        for classifier_id, estimator in enumerate(estimators):
+            feature_id, threshold, left_score, right_score = _extract_stump_params(estimator)
+
+            if feature_id >= len(all_features):
+                continue
+
+            if feature_id not in features_map:
+                src_feature = all_features[feature_id]
+                rectangles = [
+                    Rectangle(
+                        x=rect.x,
+                        y=rect.y,
+                        width=rect.width,
+                        height=rect.height,
+                        weight=float(rect.weight),
+                    )
+                    for rect in src_feature.rectangles
+                ]
+                features_map[feature_id] = Feature(
+                    feature_id=feature_id,
+                    rectangles=rectangles,
+                )
+
+            alpha = float(est_weights[classifier_id])
+            weak_classifiers.append(
+                WeakClassifier(
+                    classifier_id=classifier_id,
+                    feature_id=feature_id,
+                    threshold=threshold,
+                    left_value=left_score * alpha,
+                    right_value=right_score * alpha,
+                    feature=features_map[feature_id],
+                )
+            )
+
+        max_weak_count = max(max_weak_count, len(weak_classifiers))
+        cascade_stages.append(
+            Stage(
+                stage_id=stage_id,
+                threshold=float(stage_threshold),
+                weak_classifiers=weak_classifiers,
+                max_weak_count=len(weak_classifiers),
+            )
+        )
+
+    return HaarCascade(
+        cascade_type=cascade_type,
+        feature_type=feature_type,
+        height=height,
+        width=width,
+        stage_count=len(cascade_stages),
+        stages=cascade_stages,
+        features=features_map,
+        max_weak_count=max_weak_count,
+    )
