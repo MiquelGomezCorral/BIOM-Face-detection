@@ -68,15 +68,18 @@ class CascadeClassifier:
             })
 
     # =======================================================================
-    #                               PREDICT
+    #                          PREDICT (NO MERGE)
     # =======================================================================
-    def predict(self, img=None, img_path=None, return_candidate_count: bool = False):
+    def predict_no_merge(self, img=None, img_path=None, return_candidate_count: bool = False, halve_size: bool = False, return_loaded_image: bool = False):
         assert img is not None or img_path is not None, \
             "Either img or img_path must be provided"
 
         if img is None:
             flag = cv2.IMREAD_GRAYSCALE if self.CONFIG.gray_scale else cv2.IMREAD_COLOR
             img = cv2.imread(img_path, flag)
+
+        if halve_size:
+            img = cv2.resize(img, (img.shape[1] // 8, img.shape[0] // 8), interpolation=cv2.INTER_AREA)
 
         all_faces = []
         total_candidate_crops = 0
@@ -93,6 +96,22 @@ class CascadeClassifier:
             new_h = int(img.shape[0] * self.CONFIG.subsample_factor)
             img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
             current_scale /= self.CONFIG.subsample_factor
+
+        if return_candidate_count:
+            return all_faces, total_candidate_crops
+        if return_loaded_image:
+            return all_faces, img
+        return all_faces
+
+    # =======================================================================
+    #                               PREDICT
+    # =======================================================================
+    def predict(self, img=None, img_path=None, return_candidate_count: bool = False):
+        all_faces, total_candidate_crops = self.predict_no_merge(
+            img=img,
+            img_path=img_path,
+            return_candidate_count=True,
+        )
 
         if not all_faces:
             if return_candidate_count:
