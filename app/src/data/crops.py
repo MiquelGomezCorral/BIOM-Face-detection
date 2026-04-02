@@ -40,3 +40,21 @@ def get_image_crops(img: np.ndarray, stride: int, crop_size: int, scale: float):
                 ]),
             })
     return crops
+
+
+def get_image_crops_from_list(crops_info: list, img: np.ndarray = None, img_path: str = None):
+    if img is None:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    crops = []
+    for crop_info in crops_info:
+        x, y, w, h = crop_info["x"], crop_info["y"], crop_info["w"], crop_info["h"]
+        crops.append({
+            "x": x,
+            "y": y,
+            "w": w,
+            "h": h,
+            "img": np.ascontiguousarray(img[y:y+h, x:x+w]),
+        })
+
+    
+    return crops

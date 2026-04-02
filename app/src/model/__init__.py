@@ -12,3 +12,4 @@ from .haar_cascade_parser import (
 	Rectangle,
 )
 from .cascade_clasifier import CascadeClassifier, SlowCascadeClassifier, compute_feature
+from .cascade_serializer import CascadeSerializer

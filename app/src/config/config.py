@@ -33,7 +33,8 @@ class Configuration:
     best_cnn_model_path: str = os.path.join(MODELS_PATH, "best_cnn_model.ckpt")
     best_ori_model_path: str = os.path.join(MODELS_PATH, "best_ori_model.ckpt")
     
-    haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
+    cv_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
+    computed_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades_computed")
 
     val_split: float = 0.1
     test_split: float = 0.1
@@ -67,6 +68,7 @@ class Configuration:
             self.faces_path, self.no_faces_path,
             # self.val_path, self.test_path, 
             # self.train_f_path, self.val_f_path, self.test_f_path, 
-            self.MODELS_PATH
+            self.MODELS_PATH,
+            self.computed_haar_cascades
         ])
 
