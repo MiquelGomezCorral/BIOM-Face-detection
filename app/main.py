@@ -42,9 +42,14 @@ if __name__ == "__main__":
     # ======================================================================================
     #                                       train-viola-jones
     # ======================================================================================
-    p_train = subparsers.add_parser("train-viola-jones", help="Train a Viola-Jones face detector")
-    p_train.add_argument("-m", "--max-stages", type=int, default=10, help="Maximum number of stages (default: 10)")
-    p_train.add_argument("-t", "--target-fpr", type=float, default=0.5, help="Target false positive rate (default: 0.5)")
+    p_train = subparsers.add_parser("train_vj", help="Train a Viola-Jones face detector")
+    p_train.add_argument("-ff", "--force_features", default=False, action="store_true", help="Force the use of all features (default: False)")
+    p_train.add_argument("-m", "--max_stages", type=int, default=10, help="Maximum number of stages (default: 10)")
+    p_train.add_argument("-t", "--target_fpr", type=float, default=0.005, help="Target false positive rate (default: 0.005)")
+    p_train.add_argument("-f", "--max_faces", type=int, default=10000, help="Maximum number of face samples (default: 10000)")
+
+
+
     p_train.set_defaults(func=cmd_train_viola_jones_stages)
     # ======================================================================================
     #                                       CALL

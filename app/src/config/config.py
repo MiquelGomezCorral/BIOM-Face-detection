@@ -29,18 +29,21 @@ class Configuration:
 
 
     # =========================
+    force_features: bool = False
     crop_size: int = 24
     stride: int = 4
     detect_width: int = 320
 
     max_bg_samples: int = 20_000
+    max_faces: int = 10_000
 
     subsample_factor: float = 0.8
     normalize_window: int = 3
     
     max_features_per_stage: int = 200
     max_stages: int = 50
-    objective_fpr: float = 0.005
+    target_fpr: float = 0.005
+    
 
     def __post_init__(self):
         make_dirs([

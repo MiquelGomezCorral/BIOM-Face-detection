@@ -14,7 +14,7 @@ def start_detect_camera(CONFIG: Configuration):
         # Force use of non-GUI backend for headless environments
         os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
-    main(CONFIG)
+    camera(CONFIG)
 
 def draw_boxes(img, faces):
     """Draw bounding boxes on detected faces"""
@@ -25,9 +25,10 @@ def draw_boxes(img, faces):
     return img
 
 
-def main(CONFIG):
+def camera(CONFIG: Configuration):
     """Capture and display camera frames with face detection"""
-    cascade_path = os.path.join(CONFIG.cv_haar_cascades, 'haarcascade_frontalface_default.xml')
+    # cascade_path = os.path.join(CONFIG.cv_haar_cascades, 'haarcascade_frontalface_default.xml')
+    cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'stages_vj-0.4890.xml')
     cascade = load_cascade(cascade_path)
     CONFIG.crop_size = max(cascade.height, cascade.width)
     classifier = CascadeClassifier(CONFIG, cascade)

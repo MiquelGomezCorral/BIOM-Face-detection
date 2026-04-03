@@ -11,6 +11,17 @@ from .cascade_def import HaarCascade
 from .cascade_parser import HaarCascadeParser
 
 
+class CascadeStage:
+    """Simple wrapper to convert (clf, threshold) tuples to Stage objects."""
+    def __init__(self, clf, threshold):
+        self.clf = clf
+        self.threshold = threshold
+        self.weak_classifiers = []  # Empty for intermediate saves
+    
+    def __repr__(self):
+        return f"CascadeStage(threshold={self.threshold}, estimators={len(self.clf.estimators_)})"
+
+
 class CascadeSerializer:
     """Handles serialization/deserialization of HaarCascade objects to/from XML."""
     
@@ -97,7 +108,7 @@ class CascadeSerializer:
             f.write('<?xml version="1.0"?>\n')
             f.write(tree_str)
         
-        print(f"✓ Saved Haar cascade to: {output_path}")
+        print(f" - Saved Haar cascade to: {output_path}")
     
     @staticmethod
     def load(xml_path: str):
@@ -122,20 +133,24 @@ def save_stages(CONFIG, stages, stage_num, fpr_macro):
     
     Args:
         CONFIG: Configuration object
-        stages: List of trained stages (each with weak classifiers and thresholds)
+        stages: List of trained stages as tuples (clf, threshold)
         stage_num: Current stage number (for naming)
         fpr_macro: Current macro false positive rate (for naming)
-        output_dir: Directory to save the XML files
     """
     filename = f'haar_cascade_stage_{stage_num}_fpr_{fpr_macro:.4f}.xml'
     output_path = os.path.join(CONFIG.computed_haar_cascades, filename)
     
+    # Convert tuples to CascadeStage objects
+    cascade_stages = [CascadeStage(clf, threshold) for clf, threshold in stages]
+    
     # Create a HaarCascade object for serialization
     cascade = HaarCascade(
-        stages=stages,
-        features={feat.feature_id: feat for stage in stages for feat in stage.features},
+        stages=cascade_stages,
+        features={},
         width=CONFIG.crop_size,
         height=CONFIG.crop_size,
+        stage_count=stage_num,
+        cascade_type="trained_adaboost_stages",
         feature_type="HAAR"
     )
     CascadeSerializer.save(cascade, output_path)

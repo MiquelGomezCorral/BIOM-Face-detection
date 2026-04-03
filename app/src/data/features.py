@@ -5,6 +5,7 @@ from tqdm import tqdm
 from typing import List
 import multiprocessing as mp
 from functools import partial
+import cv2
 
 from src.model import Feature, Rectangle
 

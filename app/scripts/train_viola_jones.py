@@ -25,7 +25,7 @@ def train_viola_jones_stages(CONFIG):
         win_w = CONFIG.crop_size, 
         win_h = CONFIG.crop_size
     )
-    print(f"- Generated {len(all_features)} features.")
+    print(f" - Generated {len(all_features)} features.")
 
     # =============== FACES DATASET =============== 
     all_faces, n = list_dir_files(CONFIG.faces_path, recursive=True)
@@ -42,25 +42,25 @@ def train_viola_jones_stages(CONFIG):
         split="train",
         label_types=["detections"],
         classes=to_keep_labels,
-        max_samples=CONFIG.max_bg_samples,
+        max_samples=20000,
+        # dataset_name="open-images-bg",  # ADDED: Forces a distinct dataset instance
+        drop_existing_dataset=True      # ADDED: Clears old corrupted cache
     )
-    # bg_dataset = bg_dataset.filter_labels("ground_truth", F("label").is_in(to_keep_labels))
-    bg_dataset = bg_dataset.filter_labels("detections", F("label").is_in(to_keep_labels))
-    
+    bg_dataset = bg_dataset.filter_labels("ground_truth", F("label").is_in(to_keep_labels)) # REVERTED
     # ===============================================================
     #                  PRECOMPUTE FACE FEATURES
     # ===============================================================
-    all_faces = np.random.choice(all_faces, size=100, replace=False)
+    all_faces = np.random.choice(all_faces, size=CONFIG.max_faces, replace=False)
     print(f" - Using {len(all_faces)} files in {CONFIG.faces_path}")
 
-    if os.path.exists(CONFIG.faces_np_path):
+    if os.path.exists(CONFIG.faces_np_path) and not CONFIG.force_features:
         print(f" - Loading precomputed face features from {CONFIG.faces_np_path}...")
         X_train_faces = np.load(CONFIG.faces_np_path)
         precomputed = precompute_feature_tensors(all_features)
         print(f" - Loaded face features for {X_train_faces.shape[0]} images.")
         print(f" - X_train_faces dtype={X_train_faces.dtype}, shape={X_train_faces.shape}")
     else:
-        X_train_faces = compute_features_dataset(all_faces, all_features)
+        X_train_faces, precomputed = compute_features_dataset(all_faces, all_features)
         np.save(CONFIG.faces_np_path, X_train_faces)
         print(f" - Computed face features for {X_train_faces.shape[0]} images.")
         print(f" - X_train_faces dtype={X_train_faces.dtype}, shape={X_train_faces.shape}")
@@ -97,7 +97,6 @@ def train_viola_jones_stages(CONFIG):
     cascade_path = os.path.join(CONFIG.computed_haar_cascades, f"stages_vj-{fpr_macro:.4f}.xml")
     CascadeSerializer.save(haar_cascade, cascade_path)
 
-    print(f" - File: {cascade_path}")
     # loaded_cascade = CascadeSerializer.load(cascade_path)
 
 
@@ -137,7 +136,6 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
         stages.append((clf, threshold))
 
         # Save current stage's hard negatives
-        save_stages(CONFIG, stages, stage_num + 1, fpr_macro)
         
         print_separator("Filtering: Hard Negative mining")
         decision_scores = clf.decision_function(X_train)
@@ -152,6 +150,8 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
         # macro FPR: Fi = Fi-1 * fpr_micro with F0 = 1.0  
         fpr_micro = n_bg / n_bg_pre
         fpr_macro *= fpr_micro
+
+        save_stages(CONFIG, stages, stage_num + 1, fpr_macro)
 
         print(f" - Stage {stage_num + 1} used {len(clf.estimators_)} features.")
         print(f" - After stage {stage_num + 1}, {len(X_train)} / {prev_n_faces*2} samples remain for training.")
