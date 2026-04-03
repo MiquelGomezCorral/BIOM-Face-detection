@@ -186,9 +186,9 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         n_bg_pre = n_bg
         prev_n_faces = n_faces
         # Stop conditions
-        if n_bg == 0:
-            print_color("No more negative samples left. Stopping training.", color="green")
-            break
+        # if n_bg == 0:
+        #     print_color("No more negative samples left. Stopping training.", color="green")
+        #     break
         
         if fpr_macro <= CONFIG.target_fpr:
             print_color(f"Reached target FPR of {CONFIG.target_fpr:.4f}. Stopping training.", color="green")
