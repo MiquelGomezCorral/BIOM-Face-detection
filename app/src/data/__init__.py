@@ -2,4 +2,4 @@ from .filter import local_normalize_image, get_integral_image, get_integral_squa
 from .crops import get_all_image_crops, get_image_crops, get_image_crops_from_list
 
 from .dataset import balance_non_face_samples
-from .features import extract_features, compute_features_dataset, precompute_feature_tensors
+from .features import extract_features, compute_features_dataset, precompute_feature_tensors, generate_all_features

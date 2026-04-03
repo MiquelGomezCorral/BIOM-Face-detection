@@ -7,6 +7,7 @@ import os
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
+from .cascade_def import HaarCascade
 from .cascade_parser import HaarCascadeParser
 
 
@@ -113,3 +114,28 @@ class CascadeSerializer:
         cascade = parser.parse()
         print(f"✓ Loaded Haar cascade from: {xml_path}")
         return cascade
+
+
+def save_stages(CONFIG, stages, stage_num, fpr_macro):
+    """
+    Save the current stages to XML files in OpenCV format.
+    
+    Args:
+        CONFIG: Configuration object
+        stages: List of trained stages (each with weak classifiers and thresholds)
+        stage_num: Current stage number (for naming)
+        fpr_macro: Current macro false positive rate (for naming)
+        output_dir: Directory to save the XML files
+    """
+    filename = f'haar_cascade_stage_{stage_num}_fpr_{fpr_macro:.4f}.xml'
+    output_path = os.path.join(CONFIG.computed_haar_cascades, filename)
+    
+    # Create a HaarCascade object for serialization
+    cascade = HaarCascade(
+        stages=stages,
+        features={feat.feature_id: feat for stage in stages for feat in stage.features},
+        width=CONFIG.crop_size,
+        height=CONFIG.crop_size,
+        feature_type="HAAR"
+    )
+    CascadeSerializer.save(cascade, output_path)

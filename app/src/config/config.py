@@ -33,6 +33,8 @@ class Configuration:
     stride: int = 4
     detect_width: int = 320
 
+    max_bg_samples: int = 20_000
+
     subsample_factor: float = 0.8
     normalize_window: int = 3
     

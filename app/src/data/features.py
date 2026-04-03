@@ -86,9 +86,7 @@ def compute_features_dataset(images_paths, all_features):
     n_workers = int(max(1, (os.cpu_count() or 1) - 1) * 4 / 5)
     chunksize = 8
     # Precompute tensors once
-    _R1, _C1, _R2, _C2, _W, _FIDX = precompute_feature_tensors(all_features)
-    _N_FEATURES = len(all_features)
-    precomputed = (_R1, _C1, _R2, _C2, _W, _FIDX, _N_FEATURES)
+    precomputed = precompute_feature_tensors(all_features)
 
     # Bind precomputed tensors to extract_features function
     extract_fn = partial(extract_features, precomputed=precomputed)
@@ -103,7 +101,7 @@ def compute_features_dataset(images_paths, all_features):
         )
 
     features = np.stack(results_faces, axis=0).astype(np.float32, copy=False)
-    return features
+    return features, precomputed
 
 def precompute_feature_tensors(features):
     r1s, c1s, r2s, c2s, ws, fidx = [], [], [], [], [], []
@@ -115,7 +113,7 @@ def precompute_feature_tensors(features):
             c2s.append(rec.x + rec.width - 1)
             ws.append(rec.weight)
             fidx.append(i)
-    return (
+    _R1, _C1, _R2, _C2, _W, _FIDX = (
         np.array(r1s,  dtype=np.int32),
         np.array(c1s,  dtype=np.int32),
         np.array(r2s,  dtype=np.int32),
@@ -123,6 +121,9 @@ def precompute_feature_tensors(features):
         np.array(ws,   dtype=np.float32),
         np.array(fidx, dtype=np.int32),
     )
+
+    precomputed = (_R1, _C1, _R2, _C2, _W, _FIDX, len(features))
+    return precomputed
 
 
 

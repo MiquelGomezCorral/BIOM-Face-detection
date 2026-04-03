@@ -2,15 +2,24 @@
 
 import argparse
 from maikol_utils.other_utils import args_to_dataclass
+from maikol_utils.print_utils import print_separator
 
 from src.config import Configuration
-from scripts import start_detect_camera
+from scripts import start_detect_camera, train_viola_jones_stages
+
 
 def cmd_detect_camera(args: argparse.Namespace):
     """Call detect_camera with the given args."""
     CONFIG: Configuration = args_to_dataclass(args, Configuration)
     start_detect_camera(CONFIG)
     
+def cmd_train_viola_jones_stages(args: argparse.Namespace):
+    """Call train_viola_jones_stages with the given args."""
+    CONFIG: Configuration = args_to_dataclass(args, Configuration)
+    print_separator("TRAINING VIOLA-JONES CASCADE CLASSIFIER", sep_type="START")
+    train_viola_jones_stages(CONFIG)
+    print_separator("END TRAINING VIOLA-JONES CASCADE CLASSIFIER", sep_type="START")
+
 
 # ======================================================================================
 #                                       ARGUMENTS
@@ -30,6 +39,13 @@ if __name__ == "__main__":
     p_camera.set_defaults(func=cmd_detect_camera)
 
 
+    # ======================================================================================
+    #                                       train-viola-jones
+    # ======================================================================================
+    p_train = subparsers.add_parser("train-viola-jones", help="Train a Viola-Jones face detector")
+    p_train.add_argument("-m", "--max-stages", type=int, default=10, help="Maximum number of stages (default: 10)")
+    p_train.add_argument("-t", "--target-fpr", type=float, default=0.5, help="Target false positive rate (default: 0.5)")
+    p_train.set_defaults(func=cmd_train_viola_jones_stages)
     # ======================================================================================
     #                                       CALL
     # ======================================================================================

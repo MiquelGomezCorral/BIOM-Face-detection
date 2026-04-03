@@ -12,11 +12,11 @@ from .features import extract_features_batch
 
 def balance_non_face_samples(
         CONFIG,
-        all_features,
         stages,
+        all_features,
         num_samples,
         bg_samples,
-        max_iterations=10000, 
+        precomputed,
         n_workers=8
     ):
     cascade = build_haar_cascade_from_stages(
@@ -42,10 +42,9 @@ def balance_non_face_samples(
             return []
         # Cap how many crops we extract to avoid overshoot
         crops = crops[:max_crops]
-        return list(extract_features_batch([c["img"] for c in crops]))
+        return list(extract_features_batch([c["img"] for c in crops], precomputed=precomputed))
 
-    sample_size = min(max_iterations, len(bg_samples))
-    filepaths = np.random.choice(bg_samples, size=sample_size, replace=False)
+    np.random.shuffle(bg_samples)
 
     print(f" - Generating {num_samples} hard negative samples ({n_workers} workers)...")
     all_hard_bg = []
@@ -54,7 +53,7 @@ def balance_non_face_samples(
     with tqdm(total=num_samples, desc="Hard negatives", unit="crops") as pbar:
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
             # Submit lazily — only keep a small buffer in flight at a time
-            fp_iter = iter(filepaths)
+            fp_iter = iter(bg_samples)
             buffer_size = n_workers * 2
             futures = {}
 
