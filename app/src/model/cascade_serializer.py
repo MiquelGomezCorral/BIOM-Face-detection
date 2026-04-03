@@ -8,7 +8,7 @@ from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
 from .cascade_def import HaarCascade
-from .cascade_parser import HaarCascadeParser
+from .cascade_parser import HaarCascadeParser, build_haar_cascade_from_stages
 
 
 class CascadeStage:
@@ -40,36 +40,12 @@ class CascadeSerializer:
         opencv_storage = ET.Element('opencv_storage')
         
         # Create cascade element
-        cascade_elem = ET.SubElement(opencv_storage, 'haarcascade_frontalface_computed')
+        cascade_elem = ET.SubElement(opencv_storage, 'haarcascade_frontalface_default')
         cascade_elem.set('type_id', 'opencv-haar-classifier')
         
         # Add cascade properties
         size_elem = ET.SubElement(cascade_elem, 'size')
         size_elem.text = f'{cascade.width} {cascade.height}'
-        
-        # Store feature type
-        feature_type_elem = ET.SubElement(cascade_elem, 'featureType')
-        feature_type_elem.text = cascade.feature_type
-        
-        # Store stage count
-        stage_num_elem = ET.SubElement(cascade_elem, 'stageNum')
-        stage_num_elem.text = str(len(cascade.stages))
-        
-        # Add features (store all used features)
-        features_elem = ET.SubElement(cascade_elem, 'features')
-        for feat_id in sorted(cascade.features.keys()):
-            feature = cascade.features[feat_id]
-            feature_elem = ET.SubElement(features_elem, '_')
-            
-            # Store rectangles for this feature
-            for rect in feature.rectangles:
-                # Format: y x h w weight
-                rect_text = f'{int(rect.y)} {int(rect.x)} {int(rect.height)} {int(rect.width)} {rect.weight}'
-                rect_elem = ET.SubElement(feature_elem, 'rects')
-                
-                # Store as text with count prefix (mimics OpenCV format)
-                text_content = ET.SubElement(rect_elem, '_')
-                text_content.text = rect_text
         
         # Add stages
         stages_elem = ET.SubElement(cascade_elem, 'stages')
@@ -80,12 +56,35 @@ class CascadeSerializer:
             # Add weak classifiers as trees
             trees_elem = ET.SubElement(stage_elem, 'trees')
             
-            for clf_idx, weak_clf in enumerate(stage.weak_classifiers):
+            for weak_clf in stage.weak_classifiers:
                 tree_elem = ET.SubElement(trees_elem, '_')
-                
-                # Store classifier info (feature_id, threshold, left_val, right_val)
-                clf_info = ET.SubElement(tree_elem, '_')
-                clf_info.text = f'{weak_clf.feature_id}\n{weak_clf.threshold}\n{weak_clf.left_value}\n{weak_clf.right_value}'
+                root_elem = ET.SubElement(tree_elem, '_')
+
+                feature = weak_clf.feature
+                if feature is None:
+                    raise ValueError("Weak classifier is missing its feature definition")
+
+                feature_elem = ET.SubElement(root_elem, 'feature')
+                rects_elem = ET.SubElement(feature_elem, 'rects')
+                for rect in feature.rectangles:
+                    rect_text = (
+                        f'{int(rect.x)} {int(rect.y)} '
+                        f'{int(rect.width)} {int(rect.height)} {rect.weight}'
+                    )
+                    rect_node = ET.SubElement(rects_elem, '_')
+                    rect_node.text = rect_text
+
+                tilted_elem = ET.SubElement(feature_elem, 'tilted')
+                tilted_elem.text = '0'
+
+                threshold_elem = ET.SubElement(root_elem, 'threshold')
+                threshold_elem.text = str(float(weak_clf.threshold))
+
+                left_val_elem = ET.SubElement(root_elem, 'left_val')
+                left_val_elem.text = str(float(weak_clf.left_value))
+
+                right_val_elem = ET.SubElement(root_elem, 'right_val')
+                right_val_elem.text = str(float(weak_clf.right_value))
             
             # Stage threshold
             threshold_elem = ET.SubElement(stage_elem, 'stage_threshold')
@@ -127,7 +126,7 @@ class CascadeSerializer:
         return cascade
 
 
-def save_stages(CONFIG, stages, stage_num, fpr_macro):
+def save_stages(CONFIG, stages, stage_num, fpr_macro, all_features):
     """
     Save the current stages to XML files in OpenCV format.
     
@@ -136,21 +135,17 @@ def save_stages(CONFIG, stages, stage_num, fpr_macro):
         stages: List of trained stages as tuples (clf, threshold)
         stage_num: Current stage number (for naming)
         fpr_macro: Current macro false positive rate (for naming)
+        all_features: Full list of generated Haar features
     """
     filename = f'haar_cascade_stage_{stage_num}_fpr_{fpr_macro:.4f}.xml'
     output_path = os.path.join(CONFIG.computed_haar_cascades, filename)
-    
-    # Convert tuples to CascadeStage objects
-    cascade_stages = [CascadeStage(clf, threshold) for clf, threshold in stages]
-    
-    # Create a HaarCascade object for serialization
-    cascade = HaarCascade(
-        stages=cascade_stages,
-        features={},
+
+    cascade = build_haar_cascade_from_stages(
+        stages_output=stages,
+        all_features=all_features,
         width=CONFIG.crop_size,
         height=CONFIG.crop_size,
-        stage_count=stage_num,
         cascade_type="trained_adaboost_stages",
-        feature_type="HAAR"
+        feature_type="HAAR",
     )
     CascadeSerializer.save(cascade, output_path)

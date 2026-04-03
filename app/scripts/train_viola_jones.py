@@ -42,7 +42,7 @@ def train_viola_jones_stages(CONFIG):
         split="train",
         label_types=["detections"],
         classes=to_keep_labels,
-        max_samples=20000,
+        max_samples=CONFIG.max_bg_samples,
         # dataset_name="open-images-bg",  # ADDED: Forces a distinct dataset instance
         drop_existing_dataset=True      # ADDED: Clears old corrupted cache
     )
@@ -151,7 +151,7 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
         fpr_micro = n_bg / n_bg_pre
         fpr_macro *= fpr_micro
 
-        save_stages(CONFIG, stages, stage_num + 1, fpr_macro)
+        save_stages(CONFIG, stages, stage_num + 1, fpr_macro, all_features)
 
         print(f" - Stage {stage_num + 1} used {len(clf.estimators_)} features.")
         print(f" - After stage {stage_num + 1}, {len(X_train)} / {prev_n_faces*2} samples remain for training.")

@@ -78,7 +78,7 @@ class HaarCascadeParser:
             width = int(width_elem.text) if width_elem is not None else 24
         
         stage_num_elem = cascade_elem.find('stageNum')
-        stage_count = int(stage_num_elem.text) if stage_num_elem is not None else 0
+        stage_count = int(stage_num_elem.text) if stage_num_elem is not None else None
         
         stage_params = cascade_elem.find('stageParams')
         max_weak_count = None
@@ -92,6 +92,8 @@ class HaarCascadeParser:
         
         # Parse stages
         stages = self._parse_stages(cascade_elem, features)
+        if stage_count is None:
+            stage_count = len(stages)
         
         return HaarCascade(
             cascade_type=cascade_type,
