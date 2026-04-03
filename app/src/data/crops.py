@@ -5,10 +5,7 @@ from src.config import Configuration
 def get_all_image_crops(CONFIG: Configuration, img_path: str = None, img: np.ndarray = None):
     crops = []
     if img is None:
-        if CONFIG.gray_scale:
-            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        else:
-            img = cv2.imread(img_path)
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
 
     current_scale = 1.0
     iteration = 0

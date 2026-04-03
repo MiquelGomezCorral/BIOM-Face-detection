@@ -7,9 +7,6 @@ import cv2
 from src.model import load_cascade, CascadeClassifier
 from src.config import Configuration
 
-DETECT_WIDTH = 320
-
-
 def start_detect_camera(CONFIG: Configuration):
     # Disable Qt GUI backend if no display is available
     if not os.environ.get('DISPLAY'):
@@ -30,7 +27,7 @@ def draw_boxes(img, faces):
 
 def main(CONFIG):
     """Capture and display camera frames with face detection"""
-    cascade_path = os.path.join(CONFIG.haar_cascades, 'haarcascade_frontalface_default.xml')
+    cascade_path = os.path.join(CONFIG.cv_haar_cascades, 'haarcascade_frontalface_default.xml')
     cascade = load_cascade(cascade_path)
     CONFIG.crop_size = max(cascade.height, cascade.width)
     classifier = CascadeClassifier(CONFIG, cascade)
@@ -59,7 +56,7 @@ def main(CONFIG):
             break
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        detect_width = min(DETECT_WIDTH, gray.shape[1])
+        detect_width = min(CONFIG.detect_width, gray.shape[1])
         scale_factor = detect_width / float(gray.shape[1])
         if scale_factor < 1.0:
             small = cv2.resize(

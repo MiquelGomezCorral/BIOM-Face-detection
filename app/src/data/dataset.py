@@ -1,118 +1,104 @@
+import threading
+import dataclasses
 import numpy as np
-import torch
-import cv2
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from PIL import Image
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
-from maikol_utils.print_utils import print_separator
-from maikol_utils.file_utils import list_dir_files
+from maikol_utils.print_utils import print_warn
 
-from src.config import Configuration
-from .filter import local_normalize_image
+from src.model import build_haar_cascade_from_stages, CascadeClassifier
+from .crops import get_image_crops_from_list
+from .features import extract_features_batch
 
-class FACES_DATASET(Dataset):
-    def __init__(self, partition = "train", transform = None, CONFIG: Configuration = None):
-        self.partition = partition
-        self.transform = transform if transform is not None else transforms.Compose([
-            transforms.ToTensor(),
-        ])
-        self.config = CONFIG
+def balance_non_face_samples(
+        CONFIG,
+        all_features,
+        stages,
+        num_samples,
+        bg_samples,
+        max_iterations=10000, 
+        n_workers=8
+    ):
+    cascade = build_haar_cascade_from_stages(
+        stages_output=stages,
+        all_features=all_features,
+        width=CONFIG.crop_size,
+        height=CONFIG.crop_size,
+        cascade_type="trained_adaboost_stages",
+        feature_type="HAAR",
+    )
+    classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=4), cascade)
 
-        if self.partition == "train":
-            self.data_paths, self.n = list_dir_files(self.config.train_f_path)
-            # self.data_paths, self.n = list_dir_files(self.config.train_path)
-        elif self.partition == "val":
-            self.data_paths, self.n = list_dir_files(self.config.val_f_path)
-            # self.data_paths, self.n = list_dir_files(self.config.val_path)
-        else:
-            self.data_paths, self.n = list_dir_files(self.config.test_f_path)
-            # self.data_paths, self.n = list_dir_files(self.config.test_path)
+    stop_event = threading.Event()
 
-        print(f" - Total data {self.partition}: {self.n} images")
+    def process_image(filepath, max_crops):
+        if stop_event.is_set():
+            return []
+        fps = classifier.predict_no_merge(img_path=filepath)
+        if not fps:
+            return []
+        crops = get_image_crops_from_list(fps, img_path=filepath)
+        if not crops:
+            return []
+        # Cap how many crops we extract to avoid overshoot
+        crops = crops[:max_crops]
+        return list(extract_features_batch([c["img"] for c in crops]))
 
-    
-    def __len__(self):
-        return self.n
+    sample_size = min(max_iterations, len(bg_samples))
+    filepaths = np.random.choice(bg_samples, size=sample_size, replace=False)
 
-    def __getitem__(self, idx):
-        if self.config.gray_scale:
-            img = cv2.imread(self.data_paths[idx], cv2.IMREAD_GRAYSCALE)
-        else:
-            img = cv2.imread(self.data_paths[idx])
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
-        # # Filter for the images
-        # img = local_normalize_image(self.config, img)
+    print(f" - Generating {num_samples} hard negative samples ({n_workers} workers)...")
+    all_hard_bg = []
+    images_processed = 0
 
-        # # # Rescale to [0, 255] preserving full dynamic range
-        # img_min, img_max = img.min(), img.max()
-        # if img_max > img_min:
-        #     img = ((img - img_min) / (img_max - img_min) * 255).astype(np.uint8)
-        # else:
-        #     img = np.zeros_like(img, dtype=np.uint8)
+    with tqdm(total=num_samples, desc="Hard negatives", unit="crops") as pbar:
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            # Submit lazily — only keep a small buffer in flight at a time
+            fp_iter = iter(filepaths)
+            buffer_size = n_workers * 2
+            futures = {}
 
-        # Resize
-        img = cv2.resize(img, (self.config.crop_size, self.config.crop_size), interpolation=cv2.INTER_AREA)
-        
-        # Convert to PIL for transforms (mode 'L' for grayscale, 'RGB' for colour)
-        img = Image.fromarray(img)
+            def submit_next():
+                fp = next(fp_iter, None)
+                if fp is None or stop_event.is_set():
+                    return
+                remaining = num_samples - len(all_hard_bg)
+                f = executor.submit(process_image, fp, remaining)
+                futures[f] = fp
 
-        # data augmentation
-        img_tensor = self.transform(img)
+            # Fill initial buffer
+            for _ in range(buffer_size):
+                submit_next()
 
-        # Label
-        label = torch.tensor('person' in self.data_paths[idx], dtype=torch.long)
-        return {"img": img_tensor, "label": label}
-    
+            while futures:
+                done, _ = wait(futures, return_when=FIRST_COMPLETED)
+                for future in done:
+                    futures.pop(future)
+                    crops = future.result()
+                    images_processed += 1
 
+                    if crops:
+                        all_hard_bg.extend(crops)
+                        pbar.update(len(crops))
 
-def load_faces(CONFIG: Configuration):
-    print_separator(f"Loading FACES Dataset...")
-    
-    train_da = transforms.Compose([
-        transforms.RandomHorizontalFlip(p=CONFIG.aug_prob),
-        transforms.RandomApply([
-            transforms.RandomRotation(degrees=15),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2)
-        ], p=CONFIG.aug_prob),
-        transforms.ToTensor(),
-    ])
-    train_da = transforms.Compose([
-        transforms.RandomHorizontalFlip(p=CONFIG.aug_prob),
-        # Spatial: Rotation + Translation + Scaling
-        transforms.RandomApply([
-            transforms.RandomAffine(
-                degrees=15, 
-                translate=(0.1, 0.1), 
-                scale=(0.8, 1.2)
-            )
-        ], p=CONFIG.aug_prob),
-        # Noise: Simulates sensor grain
-        transforms.RandomApply([
-            transforms.Lambda(lambda x: x + torch.randn_like(x) * 0.02)
-        ], p=CONFIG.aug_prob * 0.5), # Apply noise less frequently
-        transforms.ToTensor(),
-        # Standardize for the CNN
-        transforms.Normalize(mean=[0.5], std=[0.5]) 
-    ])
-    
-    test_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
-    
-    train_dataset = FACES_DATASET(partition="train", transform=train_da, CONFIG=CONFIG)
-    val_dataset = FACES_DATASET(partition="val", transform=test_transform, CONFIG=CONFIG)
-    test_dataset = FACES_DATASET(partition="test", transform=test_transform, CONFIG=CONFIG)
+                    pbar.set_postfix(imgs=images_processed, crops=len(all_hard_bg))
 
-    # DataLoader Class
-    train_dataloader = DataLoader(train_dataset, CONFIG.batch_size, shuffle=True,
-                                  num_workers=CONFIG.num_workers, pin_memory=True)
-    val_dataloader = DataLoader(val_dataset, CONFIG.batch_size, shuffle=False,
-                                num_workers=CONFIG.num_workers, pin_memory=True)
-    test_dataloader = DataLoader(test_dataset, CONFIG.batch_size, shuffle=False,
-                                 num_workers=CONFIG.num_workers, pin_memory=True)
+                    if len(all_hard_bg) >= num_samples:
+                        stop_event.set()
+                        break
 
-    return train_dataloader, val_dataloader, test_dataloader
+                    submit_next()  # refill buffer one at a time
+
+                if stop_event.is_set():
+                    break
+
+    if len(all_hard_bg) < num_samples:
+        print_warn(
+            f"Only found {len(all_hard_bg)} crops (requested {num_samples}) "
+            f"after processing {images_processed} images."
+        )
+    else:
+        print(f" - Collected {len(all_hard_bg)} crops from {images_processed} images (target was {num_samples})")
+
+    return np.array(all_hard_bg, dtype=np.float32)
+

@@ -26,7 +26,7 @@ if __name__ == "__main__":
     # ======================================================================================
     p_camera = subparsers.add_parser("detect-camera", help="Open the camera and detect faces in real-time")
     p_camera.add_argument("-c", "--crop-size", type=int, default=24, help="Crop size for face detection (default: 24)")
-    p_camera.add_argument("-s", "--stride", type=int, default=4, help="Stride for face detection (default: 4)")
+    p_camera.add_argument("-s", "--stride", type=int, default=1, help="Stride for face detection (default: 4)")
     p_camera.set_defaults(func=cmd_detect_camera)
 
 

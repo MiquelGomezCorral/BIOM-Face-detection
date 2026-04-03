@@ -4,9 +4,10 @@ Handles saving to and loading from OpenCV-compatible XML format.
 """
 
 import os
-import xml.etree.ElementTree as ET
 from xml.dom import minidom
-from .haar_cascade_parser import HaarCascadeParser
+import xml.etree.ElementTree as ET
+
+from .cascade_parser import HaarCascadeParser
 
 
 class CascadeSerializer:
