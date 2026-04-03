@@ -1,7 +1,5 @@
 http://shuoyang1213.me/WIDERFACE/
 
-http://shuoyang1213.me/WIDERFACE/
-
 # General Python Project Template
 
 [English](#english) | [Español](#español)
