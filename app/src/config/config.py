@@ -30,6 +30,7 @@ class Configuration:
 
     # =========================
     force_features: bool = False
+    resume_training: bool = True
     crop_size: int = 24
     stride: int = 4
     detect_width: int = 320

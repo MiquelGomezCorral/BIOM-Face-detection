@@ -4,12 +4,16 @@ Handles saving to and loading from OpenCV-compatible XML format.
 """
 
 import os
+import pickle
+import numpy as np
+from pathlib import Path
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
 from .cascade_def import HaarCascade
 from .cascade_parser import HaarCascadeParser, build_haar_cascade_from_stages
 
+from maikol_utils.print_utils import print_color, print_warn
 
 class CascadeStage:
     """Simple wrapper to convert (clf, threshold) tuples to Stage objects."""
@@ -149,3 +153,76 @@ def save_stages(CONFIG, stages, stage_num, fpr_macro, all_features):
         feature_type="HAAR",
     )
     CascadeSerializer.save(cascade, output_path)
+
+
+def _checkpoint_path(CONFIG):
+    return os.path.join(CONFIG.computed_haar_cascades, "stages_checkpoint.pkl")
+
+
+def save_stage_checkpoint(CONFIG, checkpoint):
+    path = _checkpoint_path(CONFIG)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with open(path, "wb") as f:
+        pickle.dump(checkpoint, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print(f" - Saved stage checkpoint to: {path}")
+    return path
+
+
+def load_stage_checkpoint(CONFIG):
+    path = Path(_checkpoint_path(CONFIG))
+    if not path.exists():
+        return None
+    return pickle.loads(path.read_bytes())
+
+def resume_training_from_checkpoint(CONFIG, X_train_faces):
+    stages = []
+    n_features = X_train_faces.shape[1]
+    prev_fp = np.empty((0, n_features), dtype=np.float32) # Start with no hard negatives
+    prev_n_faces = len(X_train_faces)
+    n_bg_pre = len(X_train_faces)
+    fpr_macro = 1.0
+    start_stage = 0
+
+    if CONFIG.resume_training:
+        checkpoint = load_stage_checkpoint(CONFIG)
+        if checkpoint:
+            stages = checkpoint.get("stages", [])
+            fpr_macro = checkpoint.get("fpr_macro", fpr_macro)
+            prev_n_faces = checkpoint.get("prev_n_faces", prev_n_faces)
+            n_bg_pre = checkpoint.get("n_bg_pre", n_bg_pre)
+            prev_fp = checkpoint.get("prev_fp", prev_fp)
+
+            saved_n_features = checkpoint.get("n_features")
+            if saved_n_features is not None and saved_n_features != n_features:
+                print_warn("Checkpoint feature count mismatch. Starting training from scratch.")
+                stages = []
+                prev_fp = np.empty((0, n_features), dtype=np.float32)
+                prev_n_faces = len(X_train_faces)
+                n_bg_pre = len(X_train_faces)
+                fpr_macro = 1.0
+            else:
+                prev_fp = np.asarray(prev_fp, dtype=np.float32)
+                if prev_fp.ndim != 2 or prev_fp.shape[1] != n_features:
+                    print_warn("Checkpoint hard negatives shape mismatch. Resetting hard negatives.")
+                    prev_fp = np.empty((0, n_features), dtype=np.float32)
+
+                start_stage = len(stages)
+                saved_stage_num = checkpoint.get("stage_num", start_stage)
+                if saved_stage_num != start_stage:
+                    print_warn(
+                        f"Checkpoint stage_num ({saved_stage_num}) does not match stages ({start_stage})."
+                    )
+
+                if start_stage >= CONFIG.max_stages:
+                    print_color("All stages already trained. Nothing to resume.", color="green")
+                    return stages, fpr_macro
+
+                print_color(f"Resuming training from stage {start_stage + 1}.", color="yellow")
+        else:
+            print_color("No existing stages found. Starting training from scratch.", color="yellow")
+    else:
+        print_color("Resume disabled. Starting training from scratch.", color="yellow")
+
+    return start_stage, stages, fpr_macro, prev_n_faces, n_bg_pre, prev_fp, n_features

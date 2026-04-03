@@ -4,14 +4,21 @@ import fiftyone as fo
 import fiftyone.zoo as foz
 from fiftyone import ViewField as F
 
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import AdaBoostClassifier
+# from sklearn.tree import DecisionTreeClassifier
+# from sklearn.ensemble import AdaBoostClassifier
 
 from maikol_utils.print_utils import print_separator, print_color, print_warn
 from maikol_utils.file_utils import load_json, list_dir_files
 
 from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset
-from src.model import save_stages, CascadeSerializer, build_haar_cascade_from_stages
+from src.model import (
+    save_stages,
+    save_stage_checkpoint,
+    CascadeSerializer,
+    build_haar_cascade_from_stages,
+    AdaBoostStumpClassifier,
+    resume_training_from_checkpoint
+)
 
 
 def train_viola_jones_stages(CONFIG):
@@ -100,17 +107,19 @@ def train_viola_jones_stages(CONFIG):
     # loaded_cascade = CascadeSerializer.load(cascade_path)
 
 
-
 def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomputed):
-    stages = []
-    prev_n_faces = len(X_train_faces) 
-    n_bg_pre = len(X_train_faces) 
-    n_features = X_train_faces.shape[1]
-    prev_fp = np.empty((0, n_features), dtype=np.float32) # Start with no hard negatives
-    fpr_macro = 1.0
 
-    for stage_num in range(CONFIG. max_stages):
-        print_separator(f"Training stage {stage_num + 1}/{CONFIG. max_stages}", sep_type="LONG")
+    (
+        start_stage, stages, 
+        fpr_macro, 
+        prev_n_faces, n_bg_pre, 
+        prev_fp, n_features
+    ) = resume_training_from_checkpoint(
+        CONFIG, X_train_faces
+    )
+
+    for stage_num in range(start_stage, CONFIG.max_stages):
+        print_separator(f"Training stage {stage_num + 1}/{CONFIG.max_stages}", sep_type="LONG")
         print_separator("Generating hard negative samples")
 
         X_train_bg = balance_non_face_samples(
@@ -152,6 +161,18 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
         fpr_macro *= fpr_micro
 
         save_stages(CONFIG, stages, stage_num + 1, fpr_macro, all_features)
+        save_stage_checkpoint(
+            CONFIG,
+            {
+                "stages": stages,
+                "stage_num": stage_num + 1,
+                "fpr_macro": fpr_macro,
+                "prev_fp": prev_fp,
+                "prev_n_faces": n_faces,
+                "n_bg_pre": n_bg,
+                "n_features": n_features,
+            },
+        )
 
         print(f" - Stage {stage_num + 1} used {len(clf.estimators_)} features.")
         print(f" - After stage {stage_num + 1}, {len(X_train)} / {prev_n_faces*2} samples remain for training.")
@@ -189,10 +210,11 @@ def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.
     passes_stage = clf.decision_function(X_test) >= custom_threshold
     """
     print(' - Fitting AdaBoost with early stopping...')
-    clf = AdaBoostClassifier(
-        estimator=DecisionTreeClassifier(max_depth=1),
-        n_estimators=max_features, # set to a cap for bc no need to check all
-    )
+    # clf = AdaBoostClassifier(
+    #     estimator=DecisionTreeClassifier(max_depth=1),
+    #     n_estimators=max_features, # set to a cap for bc no need to check all
+    # )
+    clf = AdaBoostStumpClassifier(n_estimators=max_features, n_jobs=16)
     clf.fit(X_train, y_train)
 
     X_faces = X_train[y_train == 1]
