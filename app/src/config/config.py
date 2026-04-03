@@ -29,6 +29,8 @@ class Configuration:
 
 
     # =========================
+    max_cpu_cores: int = 16
+
     force_features: bool = False
     resume_training: bool = True
     crop_size: int = 24

@@ -436,7 +436,7 @@ class AdaBoostStumpClassifier:
         # Partition feature column indices into n_workers roughly equal chunks
         chunks = [c for c in np.array_split(np.arange(n_features), n_workers) if len(c)]
 
-        print(f" -Searching {n_features} features across {len(chunks)} parallel workers")
+        # print(f" - Searching {n_features} features across {len(chunks)} parallel workers")
 
         results: List[Tuple[int, float, int, float]] = Parallel(
             n_jobs    = n_workers,

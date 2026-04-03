@@ -10,6 +10,7 @@ from fiftyone import ViewField as F
 from maikol_utils.print_utils import print_separator, print_color, print_warn
 from maikol_utils.file_utils import load_json, list_dir_files
 
+from src.config import Configuration
 from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset
 from src.model import (
     save_stages,
@@ -67,7 +68,7 @@ def train_viola_jones_stages(CONFIG):
         print(f" - Loaded face features for {X_train_faces.shape[0]} images.")
         print(f" - X_train_faces dtype={X_train_faces.dtype}, shape={X_train_faces.shape}")
     else:
-        X_train_faces, precomputed = compute_features_dataset(all_faces, all_features)
+        X_train_faces, precomputed = compute_features_dataset(all_faces, all_features, n_workers=CONFIG.max_cpu_cores)
         np.save(CONFIG.faces_np_path, X_train_faces)
         print(f" - Computed face features for {X_train_faces.shape[0]} images.")
         print(f" - X_train_faces dtype={X_train_faces.dtype}, shape={X_train_faces.shape}")
@@ -107,7 +108,7 @@ def train_viola_jones_stages(CONFIG):
     # loaded_cascade = CascadeSerializer.load(cascade_path)
 
 
-def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomputed):
+def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_features, precomputed):
 
     (
         start_stage, stages, 
@@ -129,7 +130,8 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
             # Only add enough new bg samples to maintain balance with faces
             num_samples=prev_n_faces - len(prev_fp), 
             bg_samples=bg_samples, 
-            precomputed=precomputed
+            precomputed=precomputed,
+            n_workers=CONFIG.max_cpu_cores
         )
 
         if len(X_train_bg) == 0:
@@ -141,7 +143,7 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
         del X_train_bg 
 
         print_separator("Training")
-        clf, threshold = train_stage_early_stopping(X_train, y_train)
+        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores)
         stages.append((clf, threshold))
 
         # Save current stage's hard negatives
@@ -196,7 +198,7 @@ def generate_all_stages(CONFIG, X_train_faces, bg_samples, all_features, precomp
 
 
 
-def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.995, target_fpr=0.50):
+def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.995, target_fpr=0.50, max_cpu_cores=16):
     """
     train_stage_for_tpr trains an AdaBoost classifier and determines a custom threshold to achieve the target true positive rate (TPR) on the training data.
 
@@ -214,7 +216,7 @@ def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.
     #     estimator=DecisionTreeClassifier(max_depth=1),
     #     n_estimators=max_features, # set to a cap for bc no need to check all
     # )
-    clf = AdaBoostStumpClassifier(n_estimators=max_features, n_jobs=16)
+    clf = AdaBoostStumpClassifier(n_estimators=max_features, n_jobs=max_cpu_cores)
     clf.fit(X_train, y_train)
 
     X_faces = X_train[y_train == 1]

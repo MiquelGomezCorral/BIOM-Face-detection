@@ -83,8 +83,7 @@ def generate_all_features(win_w: int = 24, win_h: int = 24) -> List[Feature]:
 # =================================================================
 #                   MANAGE FEATURES FOR DATASET
 # =================================================================
-def compute_features_dataset(images_paths, all_features):
-    n_workers = int(max(1, (os.cpu_count() or 1) - 1) * 4 / 5)
+def compute_features_dataset(images_paths, all_features, n_workers=8):
     chunksize = 8
     # Precompute tensors once
     precomputed = precompute_feature_tensors(all_features)

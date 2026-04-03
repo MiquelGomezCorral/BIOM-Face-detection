@@ -43,6 +43,9 @@ if __name__ == "__main__":
     #                                       train-viola-jones
     # ======================================================================================
     p_train = subparsers.add_parser("train_vj", help="Train a Viola-Jones face detector")
+    p_train.add_argument("-cpus", "--max_cpu_cores", type=int, default=16, help="Maximum number of CPU cores to use (default: 16ye)")
+
+
     p_train.add_argument("-ff", "--force_features", default=False, action="store_true", help="Force the use of all features (default: False)")
     p_train.add_argument("-rt", "--resume_training", default=True, action="store_false", help="Resume training from existing stages (default: True)")
     p_train.add_argument("-mf", "--max_faces", type=int, default=10000, help="Maximum number of face samples (default: 10000)")
