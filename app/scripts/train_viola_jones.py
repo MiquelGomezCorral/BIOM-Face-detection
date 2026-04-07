@@ -218,40 +218,16 @@ def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.
     #     n_estimators=max_features, # set to a cap for bc no need to check all
     # )
     clf = AdaBoostStumpClassifier(n_estimators=max_features, n_jobs=max_cpu_cores)
-    clf.fit(X_train, y_train)
+    clf.fit(
+        X_train,
+        y_train,
+        target_tpr=target_tpr,
+        target_fpr=target_fpr,
+        log_fpr=True,
+    )
 
-    X_faces = X_train[y_train == 1]
-    X_bg = X_train[y_train == 0]
+    custom_threshold = clf.custom_threshold_
+    if clf.stop_feature_count_ is None:
+        print_warn("Max features reached without hitting FPR target.")
 
-    print(' - Refining threshold and selecting features...')
-    # .staged_decision_function evaluates the ensemble using 1 feature, then 2 features, etc.
-    for i, (face_scores, bg_scores) in enumerate(zip(
-        clf.staged_decision_function(X_faces),
-        clf.staged_decision_function(X_bg)
-    )):
-        
-        # Force the threshold to meet the 99.5% TPR target
-        face_scores_sorted = np.sort(face_scores)
-        drop_count = int(len(face_scores) * (1.0 - target_tpr))
-        custom_threshold = face_scores_sorted[drop_count]
-
-        # Check the False Positive Rate using this forced threshold
-        false_positives = np.sum(bg_scores >= custom_threshold)
-        fpr = false_positives / len(X_bg)
-
-        print(f"   - Features: {i+1} | FPR: {fpr:.3f}")
-
-        # 3. Stop early if we hit the FPR target!
-        if fpr <= target_fpr:
-            print(f" - Stage criteria met! Stopping at {i+1} features.")
-            
-            # Truncate the sklearn classifier to drop the unused extra features
-            clf.estimators_ = clf.estimators_[:i+1]
-            clf.estimator_weights_ = clf.estimator_weights_[:i+1]
-            clf.estimator_errors_ = clf.estimator_errors_[:i+1]
-            clf.classes_ = np.array([0, 1])
-            
-            return clf, custom_threshold
-
-    print_warn("Max features reached without hitting FPR target.")
     return clf, custom_threshold

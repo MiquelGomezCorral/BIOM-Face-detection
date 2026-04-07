@@ -326,6 +326,9 @@ class AdaBoostStumpClassifier:
         self.estimator_weights_: np.ndarray          = np.array([], dtype=np.float64)
         self.estimator_errors_:  np.ndarray          = np.array([], dtype=np.float64)
         self.classes_:           np.ndarray          = np.array([0, 1])
+        self.custom_threshold_:  float               = 0.0
+        self.stop_feature_count_: Optional[int]      = None
+        self.stop_fpr_:          Optional[float]     = None
 
     # ------------------------------------------------------------------
     # Fitting
@@ -336,6 +339,9 @@ class AdaBoostStumpClassifier:
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: Optional[np.ndarray] = None,
+        target_tpr: Optional[float] = None,
+        target_fpr: Optional[float] = None,
+        log_fpr: bool = True,
     ) -> "AdaBoostStumpClassifier":
         """
         Fit the AdaBoost ensemble.
@@ -348,9 +354,22 @@ class AdaBoostStumpClassifier:
             Binary labels {0, 1}.
         sample_weight : ndarray, shape (n_samples,), optional
             Initial per-sample weights.  Uniform if None.
+        target_tpr : float, optional
+            If provided together with target_fpr, computes a per-round
+            decision threshold that enforces this TPR on positives.
+        target_fpr : float, optional
+            If provided together with target_tpr, stops fitting early as
+            soon as the per-round FPR is <= target_fpr.
+        log_fpr : bool
+            Whether to log per-round FPR during early stopping.
         """
         n_samples, n_features = X.shape
         y = np.asarray(y, dtype=np.int32)
+
+        if (target_tpr is None) != (target_fpr is None):
+            raise ValueError("target_tpr and target_fpr must be provided together")
+
+        do_early_stop = target_tpr is not None and target_fpr is not None
 
         # Initialise sample weights
         if sample_weight is None:
@@ -363,6 +382,22 @@ class AdaBoostStumpClassifier:
         self.estimators_ = []
         weights_list: List[float] = []
         errors_list:  List[float] = []
+        self.custom_threshold_ = 0.0
+        self.stop_feature_count_ = None
+        self.stop_fpr_ = None
+
+        y_sign = (2 * y - 1).astype(np.float64)
+        cumulative_scores = np.zeros(n_samples, dtype=np.float64)
+
+        if do_early_stop:
+            faces_mask = y == 1
+            bg_mask = y == 0
+            n_faces = int(np.sum(faces_mask))
+            n_bg = int(np.sum(bg_mask))
+            if n_faces == 0 or n_bg == 0:
+                raise ValueError("Both positive and negative samples are required for early stopping")
+            drop_count = int(n_faces * (1.0 - float(target_tpr)))
+            drop_count = int(np.clip(drop_count, 0, n_faces - 1))
 
         print(f"\n - Starting AdaBoost training: {self.n_estimators} stumps target, "
               f"{n_samples} samples, {n_features} features\n")
@@ -388,14 +423,32 @@ class AdaBoostStumpClassifier:
             # w_i *= exp(-alpha * y_sign_i * h_sign_i)
             # where  y_sign, h_sign  ∈ {-1, +1}
             pred   = stump.predict(X)
-            y_sign = (2 * y    - 1).astype(np.float64)
             h_sign = (2 * pred - 1).astype(np.float64)
             w *= np.exp(-alpha * y_sign * h_sign)
             w /= w.sum()
 
+            cumulative_scores += alpha * h_sign
+
             self.estimators_.append(stump)
             weights_list.append(alpha)
             errors_list.append(error)
+
+            if do_early_stop:
+                face_scores_sorted = np.sort(cumulative_scores[faces_mask])
+                custom_threshold = float(face_scores_sorted[drop_count])
+                false_positives = np.sum(cumulative_scores[bg_mask] >= custom_threshold)
+                fpr = float(false_positives / n_bg)
+
+                if log_fpr:
+                    tqdm.write(f"   - Features: {round_idx + 1} | FPR: {fpr:.3f}")
+
+                self.custom_threshold_ = custom_threshold
+                self.stop_fpr_ = fpr
+
+                if fpr <= float(target_fpr):
+                    self.stop_feature_count_ = round_idx + 1
+                    tqdm.write(f" - Stage criteria met! Stopping at {self.stop_feature_count_} features.")
+                    break
 
             # stumps_remaining = self.n_estimators - round_idx - 1
             # tqdm.write(
@@ -403,6 +456,9 @@ class AdaBoostStumpClassifier:
             #     f"threshold={thresh:.6f}, error={error:.6f}, alpha={alpha:.6f} "
             #     f"| {stumps_remaining} remaining"
             # )
+
+        if do_early_stop and self.stop_feature_count_ is None:
+            print(" - Max features reached without hitting FPR target.")
 
         print(f" - AdaBoost training complete! {len(self.estimators_)} stumps trained.")
 
