@@ -193,8 +193,6 @@ class CascadeClassifier:
         std_dev  = np.sqrt(variance)
         std_dev  = np.where(std_dev <= 0.0, 1.0, std_dev)   # (N,)
 
-        inv_area = 1.0 / float(n_pixels)
-
         # ========= Cascade: process stages, shrinking the active set each time =========
         #
         # active_rr / active_cc / active_std hold only the survivors so far.
@@ -249,7 +247,6 @@ class CascadeClassifier:
 
                         feature_val += rect_sum * weight
 
-                    feature_val *= inv_area
                     norm_thr = clf_thrs[clf_idx] * active_std
                     stage_sum += np.where(
                         feature_val < norm_thr,
@@ -276,7 +273,7 @@ class CascadeClassifier:
                 ).astype(np.float64)
 
                 weighted = rect_sums * weights[None, :]
-                feature_vals = np.add.reduceat(weighted, clf_starts, axis=1) * inv_area
+                feature_vals = np.add.reduceat(weighted, clf_starts, axis=1)
 
                 norm_thrs = clf_thrs[None, :] * active_std[:, None]
                 votes = np.where(feature_vals < norm_thrs, clf_lv[None, :], clf_rv[None, :])
