@@ -131,7 +131,8 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
             num_samples=prev_n_faces - len(prev_fp), 
             bg_samples=bg_samples, 
             precomputed=precomputed,
-            n_workers=CONFIG.max_cpu_cores
+            n_workers=CONFIG.max_cpu_cores,
+            stop_check_interval=CONFIG.stop_check_interval
         )
 
         if len(X_train_bg) == 0:

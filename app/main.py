@@ -50,6 +50,7 @@ if __name__ == "__main__":
     p_train.add_argument("-rt", "--resume_training", default=True, action="store_false", help="Resume training from existing stages (default: True)")
     p_train.add_argument("-mf", "--max_faces", type=int, default=10000, help="Maximum number of face samples (default: 10000)")
     p_train.add_argument("-mb", "--max_bg_samples", type=int, default=20000, help="Maximum number of background samples (default: 20000)")
+    p_train.add_argument("-sci", "--stop_check_interval", type=int, default=100, help="Interval at which to check for stopping conditions (default: 100)")
 
     p_train.add_argument("-dw", "--detect_width", type=int, default=320, help="Width of the detection window (default: 320)")
 

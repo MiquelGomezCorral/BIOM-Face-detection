@@ -20,7 +20,7 @@ def balance_non_face_samples(
         bg_samples,
         precomputed,
         n_workers=8,
-    stop_check_interval=100,
+        stop_check_interval=100,
     ):
     cascade = build_haar_cascade_from_stages(
         stages_output=stages,

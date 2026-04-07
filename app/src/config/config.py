@@ -39,7 +39,8 @@ class Configuration:
 
     max_bg_samples: int = 20_000
     max_faces: int = 10_000
-
+    stop_check_interval: int = 100
+    
     subsample_factor: float = 0.8
     normalize_window: int = 3
     
