@@ -215,3 +215,5 @@ models/*
 models_/*
 !models_/.gitkeep
 lightning_logs/*
+
+.vscode/*
