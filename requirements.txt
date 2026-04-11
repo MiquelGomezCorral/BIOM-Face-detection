@@ -14,3 +14,4 @@ opencv-python==4.13.0.92
 pip-chill==1.0.5
 pure_eval==0.2.3
 stack-data==0.6.3
+uv==0.10.11
