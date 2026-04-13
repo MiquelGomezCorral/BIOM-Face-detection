@@ -1,0 +1,167 @@
+import threading
+import dataclasses
+import queue
+import numpy as np
+from tqdm import tqdm
+from concurrent.futures import CancelledError
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+
+from maikol_utils.print_utils import print_warn
+
+from src.model import build_haar_cascade_from_stages, CascadeClassifier
+from .crops import get_image_crops_from_list
+from .features import extract_features_batch
+
+def balance_non_face_samples(
+        CONFIG,
+        stages,
+        all_features,
+        num_samples,
+        bg_samples,
+        precomputed,
+        n_workers=8,
+        stop_check_interval=100,
+    ):
+    cascade = build_haar_cascade_from_stages(
+        stages_output=stages,
+        all_features=all_features,
+        width=CONFIG.crop_size,
+        height=CONFIG.crop_size,
+        cascade_type="trained_adaboost_stages",
+        feature_type="HAAR",
+    )
+    classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=4), cascade)
+
+    stop_event = threading.Event()
+
+    chunk_queue = queue.Queue(maxsize=max(1, n_workers * 4))
+
+    def process_image(filepath):
+        if stop_event.is_set():
+            return []
+        fps = classifier.predict_no_merge(img_path=filepath)
+        if not fps:
+            return []
+        crops = get_image_crops_from_list(fps, img_path=filepath)
+        if not crops:
+            return []
+        # Process crops in chunks and only check stop_event between chunks.
+        # This keeps throughput high and allows controlled overshoot.
+        produced = 0
+        for start in range(0, len(crops), stop_check_interval):
+            if stop_event.is_set():
+                break
+            end = min(start + stop_check_interval, len(crops))
+            chunk = crops[start:end]
+            chunk_features = list(
+                extract_features_batch([c["img"] for c in chunk], precomputed=precomputed)
+            )
+            if chunk_features:
+                # Stream chunk results so the main thread can update tqdm often.
+                chunk_queue.put(chunk_features)
+                produced += len(chunk_features)
+        return produced
+
+    np.random.shuffle(bg_samples)
+
+    print(
+        f" - Generating {num_samples} hard negative samples "
+        f"({n_workers} workers, stop-check every {stop_check_interval} crops)..."
+    )
+    all_hard_bg = []
+    images_processed = 0
+    generated_total = 0
+
+    with tqdm(total=num_samples, desc="Hard negatives", unit="crops") as pbar:
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            # Submit lazily — only keep a small buffer in flight at a time
+            fp_iter = iter(bg_samples)
+            buffer_size = n_workers * 2
+            futures = {}
+
+            def submit_next():
+                fp = next(fp_iter, None)
+                if fp is None or stop_event.is_set():
+                    return
+                f = executor.submit(process_image, fp)
+                futures[f] = fp
+
+            # Fill initial buffer
+            for _ in range(buffer_size):
+                submit_next()
+
+            while futures or not chunk_queue.empty():
+                # Drain streamed chunks first so progress updates are responsive.
+                drained_any = False
+                while True:
+                    try:
+                        chunk_features = chunk_queue.get_nowait()
+                    except queue.Empty:
+                        break
+
+                    drained_any = True
+                    generated_total += len(chunk_features)
+
+                    remaining = num_samples - len(all_hard_bg)
+                    if remaining > 0:
+                        accepted = chunk_features[:remaining]
+                        all_hard_bg.extend(accepted)
+                        pbar.update(len(accepted))
+
+                    pbar.set_postfix(
+                        imgs=images_processed,
+                        accepted=len(all_hard_bg),
+                        generated=generated_total,
+                    )
+
+                    if len(all_hard_bg) >= num_samples:
+                        stop_event.set()
+
+                if stop_event.is_set() and futures:
+                    for pending in list(futures):
+                        pending.cancel()
+
+                if not futures:
+                    if not drained_any:
+                        break
+                    continue
+
+                done, _ = wait(futures, timeout=0.1, return_when=FIRST_COMPLETED)
+                for future in done:
+                    futures.pop(future)
+                    images_processed += 1
+                    if not future.cancelled():
+                        try:
+                            future.result()
+                        except CancelledError:
+                            # Expected when we stop early and cancel pending work.
+                            pass
+
+                    pbar.set_postfix(
+                        imgs=images_processed,
+                        accepted=len(all_hard_bg),
+                        generated=generated_total,
+                    )
+
+                    if len(all_hard_bg) >= num_samples:
+                        stop_event.set()
+                        # Cancel queued work that has not started yet.
+                        for pending in list(futures):
+                            pending.cancel()
+                        break
+
+                    submit_next()  # refill buffer one at a time
+
+                if stop_event.is_set():
+                    break
+
+    if len(all_hard_bg) < num_samples:
+        print_warn(
+            f"Only found {len(all_hard_bg)} crops (requested {num_samples}) "
+            f"after processing {images_processed} images."
+        )
+    else:
+        print(f" - Collected {len(all_hard_bg)} crops from {images_processed} images (target was {num_samples})")
+
+    return np.array(all_hard_bg, dtype=np.float32)
+

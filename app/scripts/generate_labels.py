@@ -9,6 +9,110 @@ from src.config import Configuration
 
 filter_words = ['Boy', 'Girl', 'Human beard', 'Human body', 'Human ear', 'Human eye', 'Human face', 'Human hair', 'Human head', 'Human mouth', 'Human nose', 'Man', 'Person', 'Woman']
 
+animal_filter_words = [
+    'Animal',
+    'Ant',
+    'Antelope',
+    'Alpaca',
+    'Armadillo',
+    'Bat (Animal)',
+    'Bear',
+    'Bee',
+    'Beetle',
+    'Bird',
+    'Blue jay',
+    'Brown bear',
+    'Camel',
+    'Canary',
+    'Cat',
+    'Caterpillar',
+    'Cattle',
+    'Centipede',
+    'Cheetah',
+    'Chicken',
+    'Crab',
+    'Crocodile',
+    'Deer',
+    'Dog',
+    'Dolphin',
+    'Dragonfly',
+    'Duck',
+    'Eagle',
+    'Elephant',
+    'Falcon',
+    'Fish',
+    'Fox',
+    'Frog',
+    'Giraffe',
+    'Goat',
+    'Goldfish',
+    'Goose',
+    'Harbor seal',
+    'Hedgehog',
+    'Hippopotamus',
+    'Horse',
+    'Human arm',
+    'Human foot',
+    'Human hand',
+    'Human leg',
+    'Insect',
+    'Invertebrate',
+    'Jaguar (Animal)',
+    'Jellyfish',
+    'Kangaroo',
+    'Koala',
+    'Ladybug',
+    'Leopard',
+    'Lion',
+    'Lobster',
+    'Mammal',
+    'Man',
+    'Marine invertebrates',
+    'Marine mammal',
+    'Monkey',
+    'Moths and butterflies',
+    'Mouse',
+    'Mule',
+    'Ostrich',
+    'Otter',
+    'Owl',
+    'Oyster',
+    'Panda',
+    'Parrot',
+    'Penguin',
+    'Pig',
+    'Polar bear',
+    'Porcupine',
+    'Rabbit',
+    'Raccoon',
+    'Raven',
+    'Reptile',
+    'Rhinoceros',
+    'Sea lion',
+    'Sea turtle',
+    'Seahorse',
+    'Shark',
+    'Sheep',
+    'Shrimp',
+    'Snail',
+    'Snake',
+    'Spider',
+    'Squid',
+    'Squirrel',
+    'Starfish',
+    'Swan',
+    'Tick',
+    'Tiger',
+    'Tortoise',
+    'Turkey',
+    'Turtle',
+    'Whale',
+    'Wolf',
+    'Worm',
+    'Woodpecker',
+    'Zebra',
+]
+
 
 all_labels = [
     'Accordion',
@@ -614,27 +718,68 @@ all_labels = [
     'Zucchini'
 ]
 
-to_keep = [
-    c
-    for c in all_labels
-    if all(word not in c for word in filter_words)
+# 1. Define the absolute safest, human-free texture classes from your list
+safe_background_whitelist = [
+    # Botanical (Yields leaves, bark, grass textures)
+    'Tree', 'Flower', 'Plant', 'Houseplant', 'Palm tree', 'Willow', 'Maple', 'Rose', 'Lily', 'Common sunflower',
+    
+    # Household Surfaces (Yields fabric, wood, and flat color textures)
+    'Curtain', 'Window blind', 'Whiteboard', 'Cabinetry', 'Pillow', 'Towel', 'Rug', 'Blanket',
+    
+    # Macro Food (Yields highly detailed organic noise, never humans)
+    'Apple', 'Banana', 'Bread', 'Broccoli', 'Cabbage', 'Cake', 'Carrot', 'Cheese', 
+    'Cookie', 'Doughnut', 'Fruit', 'Lemon', 'Orange', 'Pizza', 'Potato', 'Strawberry', 'Tomato', 'Vegetable'
+]
+# Humans cannot physically fit in the focal plane of these photos
+safe_macro_whitelist = [
+    'Ant', 'Bee', 'Beetle', 'Butterfly', 'Caterpillar', 'Centipede', 'Dragonfly', 'Insect', 
+    'Isopod', 'Ladybug', 'Moths and butterflies', 'Scorpion', 'Snail', 'Spider', 'Tick', 'Worm',
+    'Crab', 'Goldfish', 'Jellyfish', 'Lobster', 'Marine invertebrates', 'Oyster', 'Seahorse', 
+    'Shellfish', 'Shrimp', 'Squid', 'Starfish',
+    'Apple', 'Artichoke', 'Bagel', 'Baked goods', 'Banana', 'Bell pepper', 'Bread', 'Broccoli', 
+    'Cabbage', 'Cake', 'Candy', 'Cantaloupe', 'Carrot', 'Cheese', 'Coconut', 'Common fig', 
+    'Cookie', 'Croissant', 'Cucumber', 'Dessert', 'Doughnut', 'Egg (Food)', 'Fast food', 
+    'French fries', 'Fruit', 'Grape', 'Grapefruit', 'Guacamole', 'Hamburger', 'Honeycomb', 
+    'Hot dog', 'Ice cream', 'Lemon', 'Mango', 'Muffin', 'Mushroom', 'Orange', 'Pancake', 
+    'Pasta', 'Pastry', 'Peach', 'Pear', 'Pineapple', 'Pizza', 'Pomegranate', 'Popcorn', 
+    'Potato', 'Pretzel', 'Pumpkin', 'Radish', 'Salad', 'Sandwich', 'Seafood', 'Snack', 
+    'Strawberry', 'Sushi', 'Taco', 'Tart', 'Tomato', 'Vegetable', 'Waffle', 'Watermelon', 
+    'Winter melon', 'Zucchini',
+    'Common sunflower', 'Flower', 'Houseplant', 'Lavender (Plant)', 'Lily', 'Maple', 
+    'Palm tree', 'Plant', 'Rose', 'Tree', 'Willow'
 ]
 
-CONFIG = Configuration()
+# 2. Only keep classes that are in this strict whitelist
+def start_generate_filter(CONFIG: Configuration | None = None):
+    if CONFIG is None:
+        CONFIG = Configuration()
 
-save_json(CONFIG.dataset_classes_path, to_keep)
+    # to_keep = [
+    #     c
+    #     for c in all_labels
+    #     if all(word not in c for word in filter_words + animal_filter_words)
+    # ]
+    # to_keep = [c for c in all_labels if c in safe_background_whitelist]
+    to_keep = [c for c in all_labels if c in safe_macro_whitelist]
 
-# Display the images from classes we are keeping
+    save_json(CONFIG.dataset_classes_path, to_keep)
 
-dataset = foz.load_zoo_dataset(
-    "open-images-v7",
-    split="validation",
-    label_types=["detections"],
-    classes=to_keep,
-    max_samples=10000,
-)
-to_keep_view = dataset.filter_labels("ground_truth", F("label").is_in(to_keep))
+    # Display the images from classes we are keeping
+    dataset = foz.load_zoo_dataset(
+        "open-images-v7",
+        split="validation",
+        label_types=["detections"],
+        classes=to_keep,
+        max_samples=100000,
+    )
+    to_keep_view = dataset.filter_labels("ground_truth", F("label").is_in(to_keep))
 
-# Launch the app with the filtered view
-session = fo.launch_app(to_keep_view)
-session.wait()
+    # Launch the app with the filtered view
+    session = fo.launch_app(to_keep_view)
+    session.wait()
+
+    return to_keep_view
+
+
+if __name__ == "__main__":
+    start_generate_filter()

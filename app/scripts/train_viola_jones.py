@@ -1,17 +1,11 @@
 import os
 import numpy as np
-import fiftyone as fo
-import fiftyone.zoo as foz
-from fiftyone import ViewField as F
-
-# from sklearn.tree import DecisionTreeClassifier
-# from sklearn.ensemble import AdaBoostClassifier
 
 from maikol_utils.print_utils import print_separator, print_color, print_warn
-from maikol_utils.file_utils import load_json, list_dir_files
+from maikol_utils.file_utils import list_dir_files
 
 from src.config import Configuration
-from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset
+from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset, load_gb_images
 from src.model import (
     save_stages,
     save_stage_checkpoint,
@@ -36,30 +30,21 @@ def train_viola_jones_stages(CONFIG):
     print(f" - Generated {len(all_features)} features.")
 
     # =============== FACES DATASET =============== 
-    all_faces, n = list_dir_files(CONFIG.faces_path, recursive=True)
-    print(f" - Found {n} files in {CONFIG.faces_path}\n")
+    all_faces, n = list_dir_files(
+        CONFIG.faces_path if not CONFIG.use_vpc_faces else CONFIG.faces_vpc_path,
+        recursive=True
+    )
+    if len(all_faces) > CONFIG.max_faces and CONFIG.max_faces > 0:
+        all_faces = np.random.choice(all_faces, size=CONFIG.max_faces, replace=False)
+    print(f" - Found {n} files in {CONFIG.faces_vpc_path if CONFIG.use_vpc_faces else CONFIG.faces_path}\n")
 
 
     # =============== NO-FACES DATASET =============== 
-    to_keep_labels = load_json(CONFIG.dataset_classes_path)
-
-    # Download dataset without faces
-    fo.config.dataset_zoo_dir = CONFIG.no_faces_path
-    bg_dataset = foz.load_zoo_dataset(
-        "open-images-v7",
-        split="train",
-        label_types=["detections"],
-        classes=to_keep_labels,
-        max_samples=CONFIG.max_bg_samples,
-        # dataset_name="open-images-bg",  # ADDED: Forces a distinct dataset instance
-        drop_existing_dataset=True      # ADDED: Clears old corrupted cache
-    )
-    bg_dataset = bg_dataset.filter_labels("ground_truth", F("label").is_in(to_keep_labels)) # REVERTED
+    bg_dataset = load_gb_images(CONFIG) 
+    
     # ===============================================================
     #                  PRECOMPUTE FACE FEATURES
     # ===============================================================
-    all_faces = np.random.choice(all_faces, size=CONFIG.max_faces, replace=False)
-    print(f" - Using {len(all_faces)} files in {CONFIG.faces_path}")
 
     if os.path.exists(CONFIG.faces_np_path) and not CONFIG.force_features:
         print(f" - Loading precomputed face features from {CONFIG.faces_np_path}...")
@@ -147,7 +132,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         del X_train_bg 
 
         print_separator("Training")
-        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=CONFIG.target_fpr, target_tpr=CONFIG.target_tpr)
+        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=CONFIG.stage_target_fpr, target_tpr=CONFIG.target_tpr)
         stages.append((clf, threshold))
 
         # Save current stage's hard negatives

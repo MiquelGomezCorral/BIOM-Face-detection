@@ -15,6 +15,7 @@ class Configuration:
     viola_jones_path: str = os.path.join(DATA_PATH, "ViolaJones")
 
     faces_path: str = os.path.join(viola_jones_path, "face_images")
+    faces_vpc_path: str = os.path.join(viola_jones_path, "face_images_vpc")
     no_faces_path: str = os.path.join(viola_jones_path, "no_faces")
 
     faces_np_path: str = os.path.join(viola_jones_path, "faces.npy")
@@ -29,6 +30,9 @@ class Configuration:
 
 
     # =========================
+    use_vpc_faces: bool = False
+
+
     max_cpu_cores: int = 32
 
     force_features: bool = False
@@ -46,6 +50,7 @@ class Configuration:
     
     max_features_per_stage: int = 200
     max_stages: int = 50
+    stage_target_fpr: float = 0.5
     target_fpr: float = 0.005
     target_tpr: float = 0.985
     
