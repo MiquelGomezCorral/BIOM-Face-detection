@@ -43,7 +43,7 @@ if __name__ == "__main__":
     #                                       train-viola-jones
     # ======================================================================================
     p_train = subparsers.add_parser("train_vj", help="Train a Viola-Jones face detector")
-    p_train.add_argument("-cpus", "--max_cpu_cores", type=int, default=16, help="Maximum number of CPU cores to use (default: 16ye)")
+    p_train.add_argument("-cpus", "--max_cpu_cores", type=int, default=32, help="Maximum number of CPU cores to use (default: 16ye)")
 
 
     p_train.add_argument("-ff", "--force_features", default=False, action="store_true", help="Force the use of all features (default: False)")
@@ -59,6 +59,7 @@ if __name__ == "__main__":
     p_train.add_argument("-n", "--normalize_window", type=int, default=3, help="Window size for feature normalization (default: 3)")
     p_train.add_argument("-mfs", "--max_features_per_stage", type=int, default=200, help="Maximum number of features per stage (default: 200)")
     p_train.add_argument("-fpr", "--target_fpr", type=float, default=0.005, help="Target false positive rate for training (default: 0.005)")
+    p_train.add_argument("-tpr", "--target_tpr", type=float, default=0.985, help="Target true positive rate for training (default: 0.985)")
     p_train.add_argument("-ms", "--max_stages", type=int, default=50, help="Maximum number of stages to train (default: 50)")
     p_train.add_argument("-s", "--stride", type=int, default=4, help="Stride for face detection (default: 4)")
 

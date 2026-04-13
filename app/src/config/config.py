@@ -29,7 +29,7 @@ class Configuration:
 
 
     # =========================
-    max_cpu_cores: int = 16
+    max_cpu_cores: int = 32
 
     force_features: bool = False
     resume_training: bool = True
@@ -47,6 +47,7 @@ class Configuration:
     max_features_per_stage: int = 200
     max_stages: int = 50
     target_fpr: float = 0.005
+    target_tpr: float = 0.985
     
 
     def __post_init__(self):

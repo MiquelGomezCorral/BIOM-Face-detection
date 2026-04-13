@@ -128,7 +128,8 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
             stages, 
             all_features,
             # Only add enough new bg samples to maintain balance with faces
-            num_samples=prev_n_faces - len(prev_fp), 
+            # num_samples=prev_n_faces - len(prev_fp), 
+            num_samples=prev_n_faces, 
             bg_samples=bg_samples, 
             precomputed=precomputed,
             n_workers=CONFIG.max_cpu_cores,
@@ -139,12 +140,14 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
             print_color("No hard negative samples found. Stopping training.", color="green")
             break
 
-        X_train = np.vstack((X_train_faces, X_train_bg, prev_fp))
-        y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg)), np.zeros(len(prev_fp))))
+        # X_train = np.vstack((X_train_faces, X_train_bg, prev_fp))
+        X_train = np.vstack((X_train_faces, X_train_bg))
+        # y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg)), np.zeros(len(prev_fp))))
+        y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg))))
         del X_train_bg 
 
         print_separator("Training")
-        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores)
+        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=CONFIG.target_fpr, target_tpr=CONFIG.target_tpr)
         stages.append((clf, threshold))
 
         # Save current stage's hard negatives
@@ -199,7 +202,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
 
 
 
-def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.995, target_fpr=0.50, max_cpu_cores=16):
+def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.98, target_fpr=0.50, max_cpu_cores=16):
     """
     train_stage_for_tpr trains an AdaBoost classifier and determines a custom threshold to achieve the target true positive rate (TPR) on the training data.
 
