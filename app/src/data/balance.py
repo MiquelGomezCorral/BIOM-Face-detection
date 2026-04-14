@@ -38,13 +38,31 @@ def balance_non_face_samples(
 
     def process_image(filepath):
         if stop_event.is_set():
-            return []
-        fps = classifier.predict_no_merge(img_path=filepath)
+            return {
+                "filepath": filepath,
+                "candidates": 0,
+                "detections": 0,
+                "generated": 0,
+            }
+        fps, candidates = classifier.predict_no_merge(
+            img_path=filepath,
+            return_candidate_count=True,
+        )
         if not fps:
-            return []
+            return {
+                "filepath": filepath,
+                "candidates": candidates,
+                "detections": 0,
+                "generated": 0,
+            }
         crops = get_image_crops_from_list(fps, img_path=filepath)
         if not crops:
-            return []
+            return {
+                "filepath": filepath,
+                "candidates": candidates,
+                "detections": len(fps),
+                "generated": 0,
+            }
         # Process crops in chunks and only check stop_event between chunks.
         # This keeps throughput high and allows controlled overshoot.
         produced = 0
@@ -58,9 +76,14 @@ def balance_non_face_samples(
             )
             if chunk_features:
                 # Stream chunk results so the main thread can update tqdm often.
-                chunk_queue.put(chunk_features)
+                chunk_queue.put((filepath, chunk_features))
                 produced += len(chunk_features)
-        return produced
+        return {
+            "filepath": filepath,
+            "candidates": candidates,
+            "detections": len(fps),
+            "generated": produced,
+        }
 
     np.random.shuffle(bg_samples)
 
@@ -71,6 +94,10 @@ def balance_non_face_samples(
     all_hard_bg = []
     images_processed = 0
     generated_total = 0
+    total_candidates = 0
+    total_detections = 0
+    images_with_detections = 0
+    contributing_images = set()
 
     with tqdm(total=num_samples, desc="Hard negatives", unit="crops") as pbar:
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
@@ -95,7 +122,7 @@ def balance_non_face_samples(
                 drained_any = False
                 while True:
                     try:
-                        chunk_features = chunk_queue.get_nowait()
+                        source_filepath, chunk_features = chunk_queue.get_nowait()
                     except queue.Empty:
                         break
 
@@ -107,9 +134,14 @@ def balance_non_face_samples(
                         accepted = chunk_features[:remaining]
                         all_hard_bg.extend(accepted)
                         pbar.update(len(accepted))
+                        if accepted:
+                            contributing_images.add(source_filepath)
 
                     pbar.set_postfix(
                         imgs=images_processed,
+                        imgs_contrib=len(contributing_images),
+                        cand=total_candidates,
+                        det=total_detections,
                         accepted=len(all_hard_bg),
                         generated=generated_total,
                     )
@@ -132,13 +164,20 @@ def balance_non_face_samples(
                     images_processed += 1
                     if not future.cancelled():
                         try:
-                            future.result()
+                            result = future.result()
+                            total_candidates += result["candidates"]
+                            total_detections += result["detections"]
+                            if result["detections"] > 0:
+                                images_with_detections += 1
                         except CancelledError:
                             # Expected when we stop early and cancel pending work.
                             pass
 
                     pbar.set_postfix(
                         imgs=images_processed,
+                        imgs_contrib=len(contributing_images),
+                        cand=total_candidates,
+                        det=total_detections,
                         accepted=len(all_hard_bg),
                         generated=generated_total,
                     )
@@ -162,6 +201,16 @@ def balance_non_face_samples(
         )
     else:
         print(f" - Collected {len(all_hard_bg)} crops from {images_processed} images (target was {num_samples})")
+
+    print(
+        " - Mining stats: "
+        f"candidates_tried={total_candidates}, "
+        f"detections_selected={total_detections}, "
+        f"feature_crops_generated={generated_total}, "
+        f"accepted_into_pool={len(all_hard_bg)}, "
+        f"images_with_detections={images_with_detections}, "
+        f"images_contributing={len(contributing_images)}"
+    )
 
     return np.array(all_hard_bg, dtype=np.float32)
 
