@@ -51,13 +51,13 @@ if __name__ == "__main__":
     #                                       train-viola-jones
     # ======================================================================================
     p_train = subparsers.add_parser("train_vj", help="Train a Viola-Jones face detector")
-    p_train.add_argument("-cpus", "--max_cpu_cores", type=int, default=32, help="Maximum number of CPU cores to use (default: 16ye)")
+    p_train.add_argument("-cpus", "--max_cpu_cores", type=int, default=12, help="Maximum number of CPU cores to use (default: 16ye)")
 
 
     p_train.add_argument("-ff", "--force_features", default=False, action="store_true", help="Force the use of all features (default: False)")
     p_train.add_argument("-rt", "--resume_training", default=True, action="store_false", help="Resume training from existing stages (default: True)")
     p_train.add_argument("-mf", "--max_faces", type=int, default=-1, help="Maximum number of face samples (default: -1 for no limit)")
-    p_train.add_argument("-mb", "--max_bg_samples", type=int, default=20000, help="Maximum number of background samples (default: 20000)")
+    p_train.add_argument("-mb", "--max_bg_samples", type=int, default=15000, help="Maximum number of background samples (default: 15000)")
     p_train.add_argument("-sci", "--stop_check_interval", type=int, default=100, help="Interval at which to check for stopping conditions (default: 100)")
 
     p_train.add_argument("-dw", "--detect_width", type=int, default=320, help="Width of the detection window (default: 320)")

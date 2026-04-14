@@ -103,7 +103,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
     ) = resume_training_from_checkpoint(
         CONFIG, X_train_faces
     )
-
+    
     for stage_num in range(start_stage, CONFIG.max_stages):
         print_separator(f"Training stage {stage_num + 1}/{CONFIG.max_stages}", sep_type="LONG")
         print_separator("Generating hard negative samples")
@@ -124,6 +124,8 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         if len(X_train_bg) == 0:
             print_color("No hard negative samples found. Stopping training.", color="green")
             break
+
+        n_bg_pre = len(X_train_bg)
 
         # X_train = np.vstack((X_train_faces, X_train_bg, prev_fp))
         X_train = np.vstack((X_train_faces, X_train_bg))
@@ -147,8 +149,9 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
 
         n_faces = np.sum(y_train == 1)
         n_bg = len(prev_fp)
-        # macro FPR: Fi = Fi-1 * fpr_micro with F0 = 1.0  
-        fpr_micro = n_bg / n_bg_pre
+        # Stage FPR = negatives that survive this stage / negatives that entered this stage.
+        # Macro FPR is the cumulative product across stages.
+        fpr_micro = n_bg / n_bg_pre if n_bg_pre > 0 else 0.0
         fpr_macro *= fpr_micro
 
         save_stages(CONFIG, stages, stage_num + 1, fpr_macro, all_features)

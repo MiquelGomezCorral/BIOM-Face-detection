@@ -44,39 +44,39 @@ def generate_all_features(win_w: int = 24, win_h: int = 24) -> List[Feature]:
                             Rectangle(x, y + h_half, w, h_half, 1.0)
                         ]))
                         
-                    # # 3-Rectangle horizontal (Left/Center/Right)
-                    # if w % 3 == 0:
-                    #     w_third = w // 3
-                    #     features.append(Feature(
-                    #         feature_id = len(features),
-                    #         rectangles = [
-                    #         Rectangle(x, y, w_third, h, -1.0),
-                    #         Rectangle(x + w_third, y, w_third, h, 2.0), # Center weight compensates for 2 outside Rectangles
-                    #         Rectangle(x + 2 * w_third, y, w_third, h, -1.0)
-                    #     ]))
+                    # 3-Rectangle horizontal (Left/Center/Right)
+                    if w % 3 == 0:
+                        w_third = w // 3
+                        features.append(Feature(
+                            feature_id = len(features),
+                            rectangles = [
+                            Rectangle(x, y, w_third, h, -1.0),
+                            Rectangle(x + w_third, y, w_third, h, 2.0), # Center weight compensates for 2 outside Rectangles
+                            Rectangle(x + 2 * w_third, y, w_third, h, -1.0)
+                        ]))
                         
-                    # # 3-Rectangle vertical (Top/Center/Bottom)
-                    # if h % 3 == 0:
-                    #     h_third = h // 3
-                    #     features.append(Feature(
-                    #         feature_id = len(features),
-                    #         rectangles = [
-                    #         Rectangle(x, y, w, h_third, -1.0),
-                    #         Rectangle(x, y + h_third, w, h_third, 2.0),
-                    #         Rectangle(x, y + 2 * h_third, w, h_third, -1.0)
-                    #     ]))
+                    # 3-Rectangle vertical (Top/Center/Bottom)
+                    if h % 3 == 0:
+                        h_third = h // 3
+                        features.append(Feature(
+                            feature_id = len(features),
+                            rectangles = [
+                            Rectangle(x, y, w, h_third, -1.0),
+                            Rectangle(x, y + h_third, w, h_third, 2.0),
+                            Rectangle(x, y + 2 * h_third, w, h_third, -1.0)
+                        ]))
                         
-                    # # 4-Rectangle (Checkerboard)
-                    # if w % 2 == 0 and h % 2 == 0:
-                    #     w_half, h_half = w // 2, h // 2
-                    #     features.append(Feature(
-                    #         feature_id = len(features),
-                    #         rectangles = [
-                    #         Rectangle(x, y, w_half, h_half, 1.0),
-                    #         Rectangle(x + w_half, y, w_half, h_half, -1.0),
-                    #         Rectangle(x, y + h_half, w_half, h_half, -1.0),
-                    #         Rectangle(x + w_half, y + h_half, w_half, h_half, 1.0)
-                    #     ]))
+                    # 4-Rectangle (Checkerboard)
+                    if w % 2 == 0 and h % 2 == 0:
+                        w_half, h_half = w // 2, h // 2
+                        features.append(Feature(
+                            feature_id = len(features),
+                            rectangles = [
+                            Rectangle(x, y, w_half, h_half, 1.0),
+                            Rectangle(x + w_half, y, w_half, h_half, -1.0),
+                            Rectangle(x, y + h_half, w_half, h_half, -1.0),
+                            Rectangle(x + w_half, y + h_half, w_half, h_half, 1.0)
+                        ]))
                         
     return features
 
