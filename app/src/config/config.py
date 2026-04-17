@@ -14,8 +14,9 @@ class Configuration:
     wider_path: str = os.path.join(DATA_PATH, "others", "WIDER_train", "images")
     viola_jones_path: str = os.path.join(DATA_PATH, "ViolaJones")
 
-    faces_path: str = os.path.join(viola_jones_path, "face_images")
+    faces_path: str = os.path.join(viola_jones_path, "face_images_merge")
     faces_vpc_path: str = os.path.join(viola_jones_path, "face_images_vpc")
+    faces_original_path: str = os.path.join(viola_jones_path, "face_images")
     no_faces_path: str = os.path.join(viola_jones_path, "no_faces")
 
     faces_np_path: str = os.path.join(viola_jones_path, "faces.npy")
