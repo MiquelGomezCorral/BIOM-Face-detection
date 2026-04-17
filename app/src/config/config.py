@@ -7,6 +7,7 @@ class Configuration:
     """Configuration dataclass to hold application settings."""
     # =========================
     seed: int = 42
+    test_size: float = 0.1
 
     # =========================
     DATA_PATH: str = os.path.join("..", "data")
@@ -15,9 +16,13 @@ class Configuration:
     viola_jones_path: str = os.path.join(DATA_PATH, "ViolaJones")
 
     faces_path: str = os.path.join(viola_jones_path, "face_images_merge")
+    faces_all_path: str = os.path.join(faces_path, "all")
+    faces_test_path: str = os.path.join(faces_path, "test")
+    faces_train_path: str = os.path.join(faces_path, "train")
     faces_vpc_path: str = os.path.join(viola_jones_path, "face_images_vpc")
     faces_original_path: str = os.path.join(viola_jones_path, "face_images")
     no_faces_path: str = os.path.join(viola_jones_path, "no_faces")
+    no_facescrops_path: str = os.path.join(no_faces_path, "crops")
 
     faces_np_path: str = os.path.join(viola_jones_path, "faces.npy")
 
@@ -59,6 +64,8 @@ class Configuration:
     def __post_init__(self):
         make_dirs([
             self.faces_path, self.no_faces_path,
+            self.faces_train_path, self.faces_test_path,
+            self.faces_all_path,
             # self.val_path, self.test_path, 
             # self.train_f_path, self.val_f_path, self.test_f_path, 
             self.MODELS_PATH,

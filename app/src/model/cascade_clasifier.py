@@ -350,7 +350,7 @@ class CascadeClassifier:
         total_cands: int        = 0
         scale = 1.0
 
-        while img.shape[0] > crop_size and img.shape[1] > crop_size:
+        while img.shape[0] >= crop_size and img.shape[1] >= crop_size:
             faces, n = self._scale_numba(img, crop_size, stride, scale)
             all_faces.extend(faces)
             total_cands += n

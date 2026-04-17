@@ -16,67 +16,140 @@ from src.data import get_integral_image, get_integral_squared_image, get_std_fro
 #                   FEATURE DEFINITION AND EXTRACTION
 # =================================================================
 
-def generate_all_features(win_w: int = 24, win_h: int = 24) -> List[Feature]:
+def generate_all_features(
+    win_w: int = 24,
+    win_h: int = 24,
+    edge_margin: int = 2,
+    stride: int = 2,
+) -> List[Feature]:
     features = []
+
+    if edge_margin < 0:
+        raise ValueError("edge_margin must be >= 0")
+    if stride < 1:
+        raise ValueError("position_stride must be >= 1")
+
+    # Ensure there is still valid room after applying margins.
+    if (2 * edge_margin) >= win_w or (2 * edge_margin) >= win_h:
+        return features
     
-    for w in range(1, win_w + 1):
-        for h in range(1, win_h + 1):
-            for x in range(win_w - w + 1):
-                for y in range(win_h - h + 1):
-                    
-                    # 2-rectangle horizontal (Left/Right)
-                    if w % 2 == 0:
-                        w_half = w // 2
-                        features.append(Feature(
-                            feature_id = len(features),
-                            rectangles = [
+    type_constraints = {
+        0: (6,  4,  'w%2'),   # horizontal 2rect: mínimo 6x4
+        1: (4,  6,  'h%2'),   # vertical 2rect:   mínimo 4x6
+        2: (9,  4,  'w%3'),   # horizontal 3rect: mínimo 9x4
+        3: (4,  9,  'h%3'),   # vertical 3rect:   mínimo 4x9
+        4: (6,  6,  'wh%2'),  # diagonal 4rect:   mínimo 6x6
+    }
+
+    def _get_xy_ranges(w: int, h: int):
+        x_min = edge_margin
+        y_min = edge_margin
+        x_max = win_w - w - edge_margin
+        y_max = win_h - h - edge_margin
+        if x_max < x_min or y_max < y_min:
+            return range(0), range(0)
+
+        return (
+            range(x_min, x_max + 1, stride),
+            range(y_min, y_max + 1, stride),
+        )
+
+    # 2-rectangle horizontal (Left/Right)
+    min_w, min_h, _ = type_constraints[0]
+    for w in range(min_w, win_w + 1):
+        if w % 2 != 0:
+            continue
+        w_half = w // 2
+        for h in range(min_h, win_h + 1):
+            x_range, y_range = _get_xy_ranges(w, h)
+            for x in x_range:
+                for y in y_range:
+                    features.append(Feature(
+                        feature_id=len(features),
+                        rectangles=[
                             Rectangle(x, y, w_half, h, -1.0),
-                            Rectangle(x + w_half, y, w_half, h, 1.0)
-                        ]))
-                        
-                    # 2-Rectangle vertical (Top/Bottom)
-                    if h % 2 == 0:
-                        h_half = h // 2
-                        features.append(Feature(
-                            feature_id = len(features),
-                            rectangles = [
+                            Rectangle(x + w_half, y, w_half, h, 1.0),
+                        ],
+                    ))
+
+    # 2-rectangle vertical (Top/Bottom)
+    min_w, min_h, _ = type_constraints[1]
+    for w in range(min_w, win_w + 1):
+        for h in range(min_h, win_h + 1):
+            if h % 2 != 0:
+                continue
+            h_half = h // 2
+            x_range, y_range = _get_xy_ranges(w, h)
+            for x in x_range:
+                for y in y_range:
+                    features.append(Feature(
+                        feature_id=len(features),
+                        rectangles=[
                             Rectangle(x, y, w, h_half, -1.0),
-                            Rectangle(x, y + h_half, w, h_half, 1.0)
-                        ]))
-                        
-                    # 3-Rectangle horizontal (Left/Center/Right)
-                    if w % 3 == 0:
-                        w_third = w // 3
-                        features.append(Feature(
-                            feature_id = len(features),
-                            rectangles = [
+                            Rectangle(x, y + h_half, w, h_half, 1.0),
+                        ],
+                    ))
+
+    # 3-rectangle horizontal (Left/Center/Right)
+    min_w, min_h, _ = type_constraints[2]
+    for w in range(min_w, win_w + 1):
+        if w % 3 != 0:
+            continue
+        w_third = w // 3
+        for h in range(min_h, win_h + 1):
+            x_range, y_range = _get_xy_ranges(w, h)
+            for x in x_range:
+                for y in y_range:
+                    features.append(Feature(
+                        feature_id=len(features),
+                        rectangles=[
                             Rectangle(x, y, w_third, h, -1.0),
-                            Rectangle(x + w_third, y, w_third, h, 2.0), # Center weight compensates for 2 outside Rectangles
-                            Rectangle(x + 2 * w_third, y, w_third, h, -1.0)
-                        ]))
-                        
-                    # 3-Rectangle vertical (Top/Center/Bottom)
-                    if h % 3 == 0:
-                        h_third = h // 3
-                        features.append(Feature(
-                            feature_id = len(features),
-                            rectangles = [
+                            Rectangle(x + w_third, y, w_third, h, 2.0),
+                            Rectangle(x + 2 * w_third, y, w_third, h, -1.0),
+                        ],
+                    ))
+
+    # 3-rectangle vertical (Top/Center/Bottom)
+    min_w, min_h, _ = type_constraints[3]
+    for w in range(min_w, win_w + 1):
+        for h in range(min_h, win_h + 1):
+            if h % 3 != 0:
+                continue
+            h_third = h // 3
+            x_range, y_range = _get_xy_ranges(w, h)
+            for x in x_range:
+                for y in y_range:
+                    features.append(Feature(
+                        feature_id=len(features),
+                        rectangles=[
                             Rectangle(x, y, w, h_third, -1.0),
                             Rectangle(x, y + h_third, w, h_third, 2.0),
-                            Rectangle(x, y + 2 * h_third, w, h_third, -1.0)
-                        ]))
-                        
-                    # 4-Rectangle (Checkerboard)
-                    if w % 2 == 0 and h % 2 == 0:
-                        w_half, h_half = w // 2, h // 2
-                        features.append(Feature(
-                            feature_id = len(features),
-                            rectangles = [
+                            Rectangle(x, y + 2 * h_third, w, h_third, -1.0),
+                        ],
+                    ))
+
+    # 4-rectangle (Checkerboard)
+    min_w, min_h, _ = type_constraints[4]
+    for w in range(min_w, win_w + 1):
+        if w % 2 != 0:
+            continue
+        w_half = w // 2
+        for h in range(min_h, win_h + 1):
+            if h % 2 != 0:
+                continue
+            h_half = h // 2
+            x_range, y_range = _get_xy_ranges(w, h)
+            for x in x_range:
+                for y in y_range:
+                    features.append(Feature(
+                        feature_id=len(features),
+                        rectangles=[
                             Rectangle(x, y, w_half, h_half, 1.0),
                             Rectangle(x + w_half, y, w_half, h_half, -1.0),
                             Rectangle(x, y + h_half, w_half, h_half, -1.0),
-                            Rectangle(x + w_half, y + h_half, w_half, h_half, 1.0)
-                        ]))
+                            Rectangle(x + w_half, y + h_half, w_half, h_half, 1.0),
+                        ],
+                    ))
                         
     return features
 
