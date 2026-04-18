@@ -31,12 +31,12 @@ def train_viola_jones_stages(CONFIG: Configuration):
 
     # =============== FACES DATASET =============== 
     all_faces, n = list_dir_files(
-        CONFIG.faces_train_path,
+        CONFIG.faces_vpc_path if CONFIG.use_vpc_faces else CONFIG.faces_train_path,
         recursive=True
     )
     if len(all_faces) > CONFIG.max_faces and CONFIG.max_faces > 0:
         all_faces = np.random.choice(all_faces, size=CONFIG.max_faces, replace=False)
-    print(f" - Found {n} files in {CONFIG.faces_train_path}\n")
+    print(f" - Found {n} files in {CONFIG.faces_vpc_path if CONFIG.use_vpc_faces else CONFIG.faces_train_path }\n")
 
 
     # =============== NO-FACES DATASET =============== 

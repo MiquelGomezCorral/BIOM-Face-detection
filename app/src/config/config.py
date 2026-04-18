@@ -21,6 +21,7 @@ class Configuration:
     faces_train_path: str = os.path.join(faces_path, "train")
     faces_vpc_path: str = os.path.join(viola_jones_path, "face_images_vpc")
     faces_original_path: str = os.path.join(viola_jones_path, "face_images")
+    faces_cv_passed_path: str = os.path.join(faces_original_path, "cv_passed")
     no_faces_path: str = os.path.join(viola_jones_path, "no_faces")
     no_facescrops_path: str = os.path.join(no_faces_path, "crops")
 
