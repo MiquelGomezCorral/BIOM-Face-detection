@@ -20,7 +20,7 @@ def generate_all_features(
     win_w: int = 24,
     win_h: int = 24,
     edge_margin: int = 2,
-    stride: int = 2,
+    stride: int = 1,
 ) -> List[Feature]:
     features = []
 
