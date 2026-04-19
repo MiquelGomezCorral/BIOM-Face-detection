@@ -7,7 +7,7 @@ class Configuration:
     """Configuration dataclass to hold application settings."""
     # =========================
     seed: int = 42
-    test_size: float = 0.1
+    test_size: float = 0.2
 
     # =========================
     DATA_PATH: str = os.path.join("..", "data")
@@ -15,12 +15,13 @@ class Configuration:
     wider_path: str = os.path.join(DATA_PATH, "others", "WIDER_train", "images")
     viola_jones_path: str = os.path.join(DATA_PATH, "ViolaJones")
 
-    faces_path: str = os.path.join(viola_jones_path, "face_images_merge")
-    faces_all_path: str = os.path.join(faces_path, "all")
-    faces_test_path: str = os.path.join(faces_path, "test")
-    faces_train_path: str = os.path.join(faces_path, "train")
-    faces_vpc_path: str = os.path.join(viola_jones_path, "face_images_vpc")
     faces_original_path: str = os.path.join(viola_jones_path, "face_images")
+    faces_all_path: str = os.path.join(faces_original_path, "all")
+    faces_passed_path: str = os.path.join(faces_original_path, "cv_passed")
+    faces_test_path: str = os.path.join(faces_original_path, "test")
+    faces_train_path: str = os.path.join(faces_original_path, "train")
+    faces_path_merge: str = os.path.join(viola_jones_path, "face_images_merge")
+    faces_vpc_path: str = os.path.join(viola_jones_path, "face_images_vpc")
     faces_cv_passed_path: str = os.path.join(faces_original_path, "cv_passed")
     no_faces_path: str = os.path.join(viola_jones_path, "no_faces")
     no_facescrops_path: str = os.path.join(no_faces_path, "crops")
@@ -64,7 +65,7 @@ class Configuration:
 
     def __post_init__(self):
         make_dirs([
-            self.faces_path, self.no_faces_path,
+            self.faces_original_path, self.no_faces_path,
             self.faces_train_path, self.faces_test_path,
             self.faces_all_path,
             # self.val_path, self.test_path, 
