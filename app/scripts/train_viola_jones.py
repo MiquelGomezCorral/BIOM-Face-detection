@@ -107,18 +107,18 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         CONFIG, X_train_faces
     )
     
+    cascade = build_haar_cascade_from_stages(
+        stages_output=stages,
+        all_features=all_features,
+        width=CONFIG.crop_size,
+        height=CONFIG.crop_size,
+        cascade_type="trained_adaboost_stages",
+        feature_type="HAAR",
+    )
+    classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=CONFIG.stride), cascade)
     for stage_num in range(start_stage, CONFIG.max_stages):
         print_separator(f"Training stage {stage_num + 1}/{CONFIG.max_stages}", sep_type="LONG")
         print_separator("Generating hard negative samples")
-        cascade = build_haar_cascade_from_stages(
-            stages_output=stages,
-            all_features=all_features,
-            width=CONFIG.crop_size,
-            height=CONFIG.crop_size,
-            cascade_type="trained_adaboost_stages",
-            feature_type="HAAR",
-        )
-        classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=CONFIG.stride), cascade)
 
 
         X_train_bg = balance_non_face_samples(
@@ -150,6 +150,16 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         print_separator("Training")
         clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=CONFIG.stage_target_fpr, target_tpr=CONFIG.target_tpr)
         stages.append((clf, threshold))
+        cascade = build_haar_cascade_from_stages(
+            stages_output=stages,
+            all_features=all_features,
+            width=CONFIG.crop_size,
+            height=CONFIG.crop_size,
+            cascade_type="trained_adaboost_stages",
+            feature_type="HAAR",
+        )
+        classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=CONFIG.stride), cascade)
+
 
         # Save current stage's hard negatives
         
