@@ -1,5 +1,4 @@
 import threading
-import dataclasses
 import queue
 import numpy as np
 from tqdm import tqdm
@@ -8,30 +7,19 @@ from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 from maikol_utils.print_utils import print_warn
 
-from src.model import build_haar_cascade_from_stages, CascadeClassifier
+from src.model import CascadeClassifier
 from .crops import get_image_crops_from_list
 from .features import extract_features_batch
 
 def balance_non_face_samples(
-        CONFIG,
-        stages,
-        all_features,
+        classifier: CascadeClassifier,
         num_samples,
         bg_samples,
         precomputed,
         n_workers=8,
         stop_check_interval=100,
     ):
-    cascade = build_haar_cascade_from_stages(
-        stages_output=stages,
-        all_features=all_features,
-        width=CONFIG.crop_size,
-        height=CONFIG.crop_size,
-        cascade_type="trained_adaboost_stages",
-        feature_type="HAAR",
-    )
-    classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=4), cascade)
-
+    
     stop_event = threading.Event()
 
     chunk_queue = queue.Queue(maxsize=max(1, n_workers * 4))

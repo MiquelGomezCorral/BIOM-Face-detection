@@ -29,7 +29,9 @@ def camera(CONFIG: Configuration):
     """Capture and display camera frames with face detection"""
     # cascade_path = os.path.join(CONFIG.cv_haar_cascades, 'haarcascade_frontalface_default.xml')
     # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_6_fpr_0.8265.xml')
-    cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_13_fpr_0.0000.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_13_fpr_0.0000.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_21_fpr_0.0000.xml')
+    cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_49_fpr_0.0000.xml')
     cascade = load_cascade(cascade_path)
     CONFIG.crop_size = max(cascade.height, cascade.width)
     classifier = CascadeClassifier(CONFIG, cascade)

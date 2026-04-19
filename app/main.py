@@ -56,6 +56,7 @@ if __name__ == "__main__":
 
     p_train.add_argument("-ff", "--force_features", default=False, action="store_true", help="Force the use of all features (default: False)")
     p_train.add_argument("-rt", "--resume_training", default=True, action="store_false", help="Resume training from existing stages (default: True)")
+    p_train.add_argument("-pfp", "--preserve_fp", default=True, action="store_false", help="Preserve false positives from previous stages (default: True)")
     p_train.add_argument("-mf", "--max_faces", type=int, default=-1, help="Maximum number of face samples (default: -1 for no limit)")
     p_train.add_argument("-mb", "--max_bg_samples", type=int, default=15000, help="Maximum number of background samples (default: 15000)")
     p_train.add_argument("-sci", "--stop_check_interval", type=int, default=100, help="Interval at which to check for stopping conditions (default: 100)")

@@ -15,3 +15,5 @@ from .cascade_serializer import (
 )
 
 from .adaboost import AdaBoostStumpClassifier
+
+from .test import test_cascade_fpr

@@ -4,6 +4,7 @@ import numpy as np
 from maikol_utils.print_utils import print_separator, print_color, print_warn
 from maikol_utils.file_utils import list_dir_files
 
+import dataclasses
 from src.config import Configuration
 from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset, load_gb_images
 from src.model import (
@@ -11,8 +12,10 @@ from src.model import (
     save_stage_checkpoint,
     CascadeSerializer,
     build_haar_cascade_from_stages,
+    CascadeClassifier,
     AdaBoostStumpClassifier,
-    resume_training_from_checkpoint
+    resume_training_from_checkpoint,
+    test_cascade_fpr
 )
 
 
@@ -97,7 +100,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
 
     (
         start_stage, stages, 
-        fpr_macro, 
+        fpr_macro_thr, 
         prev_n_faces, n_bg_pre, 
         prev_fp, n_features
     ) = resume_training_from_checkpoint(
@@ -107,11 +110,19 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
     for stage_num in range(start_stage, CONFIG.max_stages):
         print_separator(f"Training stage {stage_num + 1}/{CONFIG.max_stages}", sep_type="LONG")
         print_separator("Generating hard negative samples")
+        cascade = build_haar_cascade_from_stages(
+            stages_output=stages,
+            all_features=all_features,
+            width=CONFIG.crop_size,
+            height=CONFIG.crop_size,
+            cascade_type="trained_adaboost_stages",
+            feature_type="HAAR",
+        )
+        classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=CONFIG.stride), cascade)
+
 
         X_train_bg = balance_non_face_samples(
-            CONFIG,
-            stages, 
-            all_features,
+            classifier=classifier,
             # Only add enough new bg samples to maintain balance with faces
             # num_samples=prev_n_faces - len(prev_fp), 
             num_samples=prev_n_faces, 
@@ -127,10 +138,13 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
 
         n_bg_pre = len(X_train_bg)
 
-        # X_train = np.vstack((X_train_faces, X_train_bg, prev_fp))
-        X_train = np.vstack((X_train_faces, X_train_bg))
-        # y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg)), np.zeros(len(prev_fp))))
-        y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg))))
+        if CONFIG.preserve_fp:
+            X_train = np.vstack((X_train_faces, X_train_bg, prev_fp))
+            y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg)), np.zeros(len(prev_fp))))
+        else:
+            X_train = np.vstack((X_train_faces, X_train_bg))
+            y_train = np.hstack((np.ones(len(X_train_faces)), np.zeros(len(X_train_bg))))
+
         del X_train_bg 
 
         print_separator("Training")
@@ -152,28 +166,30 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         # Stage FPR = negatives that survive this stage / negatives that entered this stage.
         # Macro FPR is the cumulative product across stages.
         fpr_micro = n_bg / n_bg_pre if n_bg_pre > 0 else 0.0
-        fpr_macro *= fpr_micro
+        fpr_macro_thr *= fpr_micro
 
-        save_stages(CONFIG, stages, stage_num + 1, fpr_macro, all_features)
+        save_stages(CONFIG, stages, stage_num + 1, fpr_macro_thr, all_features)
         save_stage_checkpoint(
             CONFIG,
             {
                 "stages": stages,
                 "stage_num": stage_num + 1,
-                "fpr_macro": fpr_macro,
+                "fpr_macro_thr": fpr_macro_thr,
                 "prev_fp": prev_fp,
                 "prev_n_faces": n_faces,
                 "n_bg_pre": n_bg,
                 "n_features": n_features,
             },
         )
+        fpr_macro = test_cascade_fpr(CONFIG, classifier)
+        print_color(f" - Tested macro FPR on training faces: {fpr_macro:.10f}", color="blue")
 
         print(f" - Stage {stage_num + 1} used {len(clf.estimators_)} features.")
         print(f" - After stage {stage_num + 1}, {len(X_train)} / {prev_n_faces*2} samples remain for training.")
         print(f"   - {n_faces} faces")
         print(f"   - {n_bg} non-faces")
         print(f"   - {fpr_micro:.4f} micro false positive rate")
-        print(f"   - {fpr_macro:.4f} macro false positive rate")
+        print(f"   - {fpr_macro_thr:.4f} macro false positive rate")
         
         n_bg_pre = n_bg
         prev_n_faces = n_faces
@@ -182,11 +198,12 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         #     print_color("No more negative samples left. Stopping training.", color="green")
         #     break
         
+
         if fpr_macro <= CONFIG.target_fpr:
-            print_color(f"Reached target FPR of {CONFIG.target_fpr:.4f}. Stopping training.", color="green")
+            print_color(f"Reached target FPR of {CONFIG.target_fpr:.10f}. Stopping training.", color="green")
             break
 
-    return stages, fpr_macro
+    return stages, fpr_macro_thr
 
 
 
