@@ -65,6 +65,7 @@ def balance_non_face_samples(
             }
         # Process crops in chunks and only check stop_event between chunks.
         # This keeps throughput high and allows controlled overshoot.
+        crops = np.random.permutation(crops) 
         produced = 0
         for start in range(0, len(crops), stop_check_interval):
             if stop_event.is_set():
