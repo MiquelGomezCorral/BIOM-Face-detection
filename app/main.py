@@ -73,7 +73,7 @@ if __name__ == "__main__":
     p_train.add_argument("-ms", "--max_stages", type=int, default=100, help="Maximum number of stages to train (default: 50)")
     p_train.add_argument("-s", "--stride", type=int, default=1, help="Stride for face detection (default: 4)")
     p_train.add_argument("-fe", "--feature_stride", type=int, default=1, help="Stride for feature computation (default: 1)")
-    p_train.add_argument("-fe", "--feature_edge_margin", type=int, default=0, help="Edge margin for feature computation (default: 1)")
+    p_train.add_argument("-fem", "--feature_edge_margin", type=int, default=0, help="Edge margin for feature computation (default: 1)")
 
 
 
