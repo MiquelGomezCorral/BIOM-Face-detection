@@ -124,8 +124,8 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         X_train_bg = balance_non_face_samples(
             classifier=classifier,
             # Only add enough new bg samples to maintain balance with faces
-            # num_samples=prev_n_faces - len(prev_fp), 
-            num_samples=prev_n_faces, 
+            num_samples=prev_n_faces - len(prev_fp), 
+            # num_samples=prev_n_faces, 
             bg_samples=bg_samples, 
             precomputed=precomputed,
             n_workers=CONFIG.max_cpu_cores,
@@ -150,6 +150,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         print_separator("Training")
         clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=CONFIG.stage_target_fpr, target_tpr=CONFIG.target_tpr)
         stages.append((clf, threshold))
+
         cascade = build_haar_cascade_from_stages(
             stages_output=stages,
             all_features=all_features,
@@ -159,6 +160,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
             feature_type="HAAR",
         )
         classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=CONFIG.stride), cascade)
+        fpr_macro = test_cascade_fpr(CONFIG, classifier)
 
 
         # Save current stage's hard negatives
@@ -178,7 +180,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         fpr_micro = n_bg / n_bg_pre if n_bg_pre > 0 else 0.0
         fpr_macro_thr *= fpr_micro
 
-        save_stages(CONFIG, stages, stage_num + 1, fpr_macro_thr, all_features)
+        save_stages(CONFIG, stages, stage_num + 1, fpr_macro, all_features)
         save_stage_checkpoint(
             CONFIG,
             {
@@ -191,15 +193,14 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
                 "n_features": n_features,
             },
         )
-        fpr_macro = test_cascade_fpr(CONFIG, classifier)
-        print_color(f" - Tested macro FPR on training faces: {fpr_macro:.10f}", color="blue")
 
         print(f" - Stage {stage_num + 1} used {len(clf.estimators_)} features.")
         print(f" - After stage {stage_num + 1}, {len(X_train)} / {prev_n_faces*2} samples remain for training.")
         print(f"   - {n_faces} faces")
         print(f"   - {n_bg} non-faces")
         print(f"   - {fpr_micro:.4f} micro false positive rate")
-        print(f"   - {fpr_macro_thr:.4f} macro false positive rate")
+        print(f"   - {fpr_macro_thr:.4f} thr macro false positive rate")
+        print_color(f"   - Tested macro FPR on training faces: {fpr_macro:.10f}", color="blue")
         
         n_bg_pre = n_bg
         prev_n_faces = n_faces

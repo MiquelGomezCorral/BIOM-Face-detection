@@ -35,7 +35,7 @@ class Configuration:
     best_ori_model_path: str = os.path.join(MODELS_PATH, "best_ori_model.ckpt")
     
     cv_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
-    computed_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades_computed")
+    computed_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades_computed_kfp_2")
 
 
     # =========================

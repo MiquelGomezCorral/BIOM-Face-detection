@@ -182,14 +182,14 @@ def resume_training_from_checkpoint(CONFIG, X_train_faces):
     prev_fp = np.empty((0, n_features), dtype=np.float32) # Start with no hard negatives
     prev_n_faces = len(X_train_faces)
     n_bg_pre = len(X_train_faces)
-    fpr_macro = 1.0
+    fpr_macro_thr = 1.0
     start_stage = 0
 
     if CONFIG.resume_training:
         checkpoint = load_stage_checkpoint(CONFIG)
         if checkpoint:
             stages = checkpoint.get("stages", [])
-            fpr_macro = checkpoint.get("fpr_macro", fpr_macro)
+            fpr_macro_thr = checkpoint.get("fpr_macro_thr", fpr_macro_thr)
             prev_n_faces = checkpoint.get("prev_n_faces", prev_n_faces)
             n_bg_pre = checkpoint.get("n_bg_pre", n_bg_pre)
             prev_fp = checkpoint.get("prev_fp", prev_fp)
@@ -201,7 +201,7 @@ def resume_training_from_checkpoint(CONFIG, X_train_faces):
                 prev_fp = np.empty((0, n_features), dtype=np.float32)
                 prev_n_faces = len(X_train_faces)
                 n_bg_pre = len(X_train_faces)
-                fpr_macro = 1.0
+                fpr_macro_thr = 1.0
             else:
                 prev_fp = np.asarray(prev_fp, dtype=np.float32)
                 if prev_fp.ndim != 2 or prev_fp.shape[1] != n_features:
@@ -217,7 +217,7 @@ def resume_training_from_checkpoint(CONFIG, X_train_faces):
 
                 if start_stage >= CONFIG.max_stages:
                     print_color("All stages already trained. Nothing to resume.", color="green")
-                    return stages, fpr_macro
+                    return stages, fpr_macro_thr
 
                 print_color(f"Resuming training from stage {start_stage + 1}.", color="yellow")
         else:
@@ -225,4 +225,4 @@ def resume_training_from_checkpoint(CONFIG, X_train_faces):
     else:
         print_color("Resume disabled. Starting training from scratch.", color="yellow")
 
-    return start_stage, stages, fpr_macro, prev_n_faces, n_bg_pre, prev_fp, n_features
+    return start_stage, stages, fpr_macro_thr, prev_n_faces, n_bg_pre, prev_fp, n_features
