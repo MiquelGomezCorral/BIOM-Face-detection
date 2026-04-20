@@ -72,8 +72,13 @@ if __name__ == "__main__":
     p_train.add_argument("-tpr", "--target_tpr", type=float, default=0.99, help="Target true positive rate for training (default: 0.985)")
     p_train.add_argument("-ms", "--max_stages", type=int, default=100, help="Maximum number of stages to train (default: 50)")
     p_train.add_argument("-s", "--stride", type=int, default=1, help="Stride for face detection (default: 4)")
+    p_train.add_argument("-fe", "--feature_stride", type=int, default=1, help="Stride for feature computation (default: 1)")
+    p_train.add_argument("-fe", "--feature_edge_margin", type=int, default=0, help="Edge margin for feature computation (default: 1)")
+
+
 
     p_train.add_argument('-vpc', '--use_vpc_faces', default=False, action='store_true', help="Use the VPC faces dataset instead of WIDER (default: False)")
+
 
 
     p_train.set_defaults(func=cmd_train_viola_jones_stages)

@@ -48,6 +48,8 @@ class Configuration:
     resume_training: bool = True
     preserve_fp: bool = True
     crop_size: int = 24
+    feature_stride: int = 1
+    feature_edge_margin: int = 0
     stride: int = 4
     detect_width: int = 320
 

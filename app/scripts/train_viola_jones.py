@@ -29,6 +29,8 @@ def train_viola_jones_stages(CONFIG: Configuration):
     all_features = generate_all_features(
         win_w = CONFIG.crop_size, 
         win_h = CONFIG.crop_size
+        edge_margin = CONFIG.feature_edge_margin,
+        stride = CONFIG.feature_stride
     )
     print(f" - Generated {len(all_features)} features.")
 
@@ -124,8 +126,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         X_train_bg = balance_non_face_samples(
             classifier=classifier,
             # Only add enough new bg samples to maintain balance with faces
-            num_samples=prev_n_faces - len(prev_fp), 
-            # num_samples=prev_n_faces, 
+            num_samples=prev_n_faces - len(prev_fp) if CONFIG.preserve_fp else prev_n_faces, 
             bg_samples=bg_samples, 
             precomputed=precomputed,
             n_workers=CONFIG.max_cpu_cores,
