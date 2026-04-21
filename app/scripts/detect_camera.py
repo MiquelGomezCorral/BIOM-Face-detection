@@ -32,7 +32,13 @@ def camera(CONFIG: Configuration):
     # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_13_fpr_0.0000.xml')
     # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_21_fpr_0.0000.xml')
     # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_49_fpr_0.0000.xml')
-    cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_13_fpr_0.0049.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_13_fpr_0.0049.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_53_fpr_0.0001.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_38_fpr_0.0002.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_10_fpr_0.0043.xml')
+    # cascade_path = os.path.join(CONFIG.computed_haar_cascades, 'haar_cascade_stage_12_fpr_0.0030.xml')
+    cascade_path = CONFIG.computed_haar_cascades_path
+
     cascade = load_cascade(cascade_path)
     CONFIG.crop_size = max(cascade.height, cascade.width)
     classifier = CascadeClassifier(CONFIG, cascade)
@@ -40,7 +46,10 @@ def camera(CONFIG: Configuration):
     
     # Open video capture
     vc = cv2.VideoCapture(0)
-    
+    window_name = 'Camera - Face Detection'
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)   # allow manual/programmable resize
+    cv2.resizeWindow(window_name, CONFIG.camera_window_width, CONFIG.camera_window_height)
+        
     if not vc.isOpened():
         print("ERROR: Cannot open video capture device")
         return
@@ -100,7 +109,7 @@ def camera(CONFIG: Configuration):
         )
         
         # ========================== Display frame ==========================
-        cv2.imshow('Camera - Face Detection', frame_with_boxes)
+        cv2.imshow(window_name, frame_with_boxes)
         
         # ========================== Process keyboard input ==========================
         key = cv2.waitKey(1) & 0xFF

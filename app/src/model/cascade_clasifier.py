@@ -271,8 +271,9 @@ class CascadeClassifier:
         img:                    Optional[np.ndarray] = None,
         img_path:               Optional[str]        = None,
         return_candidate_count: bool                 = False,
-        halve_size:             bool                 = False,
         return_loaded_image:    bool                 = False,
+        halve_size:             bool                 = False,
+        halve_size_factor:      int                  = 2,
     ):
         assert img is not None or img_path is not None, \
             "Either img or img_path must be provided."
@@ -284,7 +285,7 @@ class CascadeClassifier:
 
         if halve_size:
             img = cv2.resize(
-                img, (img.shape[1] // 2, img.shape[0] // 2),
+                img, (img.shape[1] // int(halve_size_factor), img.shape[0] // int(halve_size_factor)),
                 interpolation=cv2.INTER_AREA,
             )
 

@@ -35,7 +35,9 @@ class Configuration:
     best_ori_model_path: str = os.path.join(MODELS_PATH, "best_ori_model.ckpt")
     
     cv_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
-    computed_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades_computed_kfp_2")
+    computed_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades_computed")
+    computed_haar_cascades_name: str = "haar_cascade_stage_38_fpr_0.0002.xml"
+    computed_haar_cascades_path: str = os.path.join(computed_haar_cascades, computed_haar_cascades_name)
 
 
     # =========================
@@ -51,7 +53,9 @@ class Configuration:
     feature_stride: int = 1
     feature_edge_margin: int = 0
     stride: int = 4
-    detect_width: int = 320
+    detect_width: int = 1080
+    camera_window_width: int = 1920
+    camera_window_height: int = 1080
 
     max_bg_samples: int = 20_000
     max_faces: int = 10_000
@@ -79,3 +83,5 @@ class Configuration:
             self.computed_haar_cascades
         ])
 
+        
+        self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
