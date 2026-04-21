@@ -18,6 +18,8 @@ def balance_non_face_samples(
         precomputed,
         n_workers=8,
         stop_check_interval=100,
+    predictor_halve_size=True,
+    predictor_halve_size_factor=2,
     ):
     
     stop_event = threading.Event()
@@ -35,6 +37,8 @@ def balance_non_face_samples(
         fps, candidates = classifier.predict_no_merge(
             img_path=filepath,
             return_candidate_count=True,
+            halve_size=predictor_halve_size,
+            halve_size_factor=predictor_halve_size_factor,
         )
         if not fps:
             return {
@@ -43,7 +47,11 @@ def balance_non_face_samples(
                 "detections": 0,
                 "generated": 0,
             }
-        crops = get_image_crops_from_list(fps, img_path=filepath)
+        crops = get_image_crops_from_list(
+            fps,
+            img_path=filepath,
+            read_scale_factor=(predictor_halve_size_factor if predictor_halve_size else 1),
+        )
         if not crops:
             return {
                 "filepath": filepath,

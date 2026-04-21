@@ -39,9 +39,23 @@ def get_image_crops(img: np.ndarray, stride: int, crop_size: int, scale: float):
     return crops
 
 
-def get_image_crops_from_list(crops_info: list, img: np.ndarray = None, img_path: str = None):
+def get_image_crops_from_list(
+    crops_info: list,
+    img: np.ndarray = None,
+    img_path: str = None,
+    read_scale_factor: int = 1,
+):
     if img is None:
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+
+    if read_scale_factor is None:
+        read_scale_factor = 1
+    read_scale_factor = max(1, int(read_scale_factor))
+    if read_scale_factor > 1:
+        new_w = max(1, img.shape[1] // read_scale_factor)
+        new_h = max(1, img.shape[0] // read_scale_factor)
+        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
     crops = []
     for crop_info in crops_info:
         x, y, w, h = crop_info["x"], crop_info["y"], crop_info["w"], crop_info["h"]
