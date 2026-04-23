@@ -313,29 +313,68 @@ class CascadeClassifier:
         img:                    Optional[np.ndarray] = None,
         img_path:               Optional[str]        = None,
         return_candidate_count: bool                 = False,
+        return_loaded_image:    bool                 = False,
+        halve_size:             bool                 = False,
+        halve_size_factor:      int                  = 2,
     ):
-        all_faces, total_candidates = self.predict_no_merge(
-            img=img,
-            img_path=img_path,
-            return_candidate_count=True,
-        )
+        if return_candidate_count:
+            all_faces, total_candidates = self.predict_no_merge(
+                img=img,
+                img_path=img_path,
+                return_candidate_count=True,
+                halve_size=halve_size,
+                halve_size_factor=halve_size_factor,
+            )
+            loaded_img = None
+        elif return_loaded_image:
+            all_faces, loaded_img = self.predict_no_merge(
+                img=img,
+                img_path=img_path,
+                return_loaded_image=True,
+                halve_size=halve_size,
+                halve_size_factor=halve_size_factor,
+            )
+            total_candidates = None
+        else:
+            all_faces = self.predict_no_merge(
+                img=img,
+                img_path=img_path,
+                halve_size=halve_size,
+                halve_size_factor=halve_size_factor,
+            )
+            total_candidates = None
+            loaded_img = None
 
         if not all_faces:
-            return ([], total_candidates) if return_candidate_count else []
+            if return_candidate_count:
+                return [], total_candidates
+            if return_loaded_image:
+                return [], loaded_img
+            return []
 
         # Non-maximum suppression via OpenCV group-rectangles
+        # groupThreshold=1 with duplicated rects ensures overlapping detections are merged
+        # eps=0.2 allows up to 20% distance (80% overlap required)
         rects = [[f["x"], f["y"], f["w"], f["h"]] for f in all_faces]
-        grouped, _ = cv2.groupRectangles(rects + rects, groupThreshold=2, eps=0.3)
+        grouped, _ = cv2.groupRectangles(rects + rects, groupThreshold=1, eps=0.2)
 
         if len(grouped) == 0:
-            return ([], total_candidates) if return_candidate_count else []
+            if return_candidate_count:
+                return [], total_candidates
+            if return_loaded_image:
+                return [], loaded_img
+            return []
 
         result = [
             {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
             for x, y, w, h in grouped
         ]
 
-        return (result, total_candidates) if return_candidate_count else result
+        if return_candidate_count:
+            return result, total_candidates
+        if return_loaded_image:
+            return result, loaded_img
+        return result
 
     # =======================================================================
     #  Numba path  – sequential over scales, parallel over windows per scale

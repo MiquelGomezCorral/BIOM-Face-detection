@@ -43,21 +43,30 @@ def camera(CONFIG: Configuration):
     CONFIG.crop_size = max(cascade.height, cascade.width)
     classifier = CascadeClassifier(CONFIG, cascade)
 
-    
     # Open video capture
     vc = cv2.VideoCapture(0)
-    window_name = 'Camera - Face Detection'
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)   # allow manual/programmable resize
-    cv2.resizeWindow(window_name, CONFIG.camera_window_width, CONFIG.camera_window_height)
-        
+    
     if not vc.isOpened():
         print("ERROR: Cannot open video capture device")
         return
     
-    # Optional: Set camera resolution for better performance
-    # vc.set(cv2.CAP_PROP_FRAME_WIDTH, 2048)
-    # vc.set(cv2.CAP_PROP_FRAME_HEIGHT, 2048)
+    # Set camera to 16:9 resolution matching detect_width
+    # detect_width is the width; height = width * 9 / 16 for 16:9 aspect ratio
+    detect_width = CONFIG.detect_width
+    detect_height = int(detect_width * 9 / 16)
+    
+    vc.set(cv2.CAP_PROP_FRAME_WIDTH, detect_width)
+    vc.set(cv2.CAP_PROP_FRAME_HEIGHT, detect_height)
     vc.set(cv2.CAP_PROP_FPS, 30)
+    
+    # Read actual resolution set by camera
+    actual_width = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Camera resolution set to: {actual_width}x{actual_height} (16:9)")
+    
+    window_name = 'Camera - Face Detection'
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, CONFIG.camera_window_width, CONFIG.camera_window_height)
     
     frame_count = 0
     print("Camera started. Press 'q' or ESC to quit.")
@@ -68,39 +77,33 @@ def camera(CONFIG: Configuration):
         if not rval:
             print("ERROR: Failed to read frame")
             break
+        
+        # Convert to grayscale for detection
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        detect_width = min(CONFIG.detect_width, gray.shape[1])
-        scale_factor = detect_width / float(gray.shape[1])
-        if scale_factor < 1.0:
-            small = cv2.resize(
-                gray,
-                (detect_width, int(gray.shape[0] * scale_factor)),
-                interpolation=cv2.INTER_AREA,
-            )
-            faces_small = classifier.predict(img=small)
-            inv = 1.0 / scale_factor
-            faces = [
-                {
-                    **f,
-                    "x": int(f["x"] * inv),
-                    "y": int(f["y"] * inv),
-                    "w": int(f["w"] * inv),
-                    "h": int(f["h"] * inv),
-                }
-                for f in faces_small
-            ]
-        else:
-            faces = classifier.predict(img=gray)
+        
+        # Detect faces with halve_size downsampling
+        faces = classifier.predict(img=gray, halve_size=True, halve_size_factor=CONFIG.halve_size_factor)
+        
+        # Scale face coordinates back to original frame size
+        scale_factor = CONFIG.halve_size_factor
+        faces_scaled = [
+            {
+                "x": int(f["x"] * scale_factor),
+                "y": int(f["y"] * scale_factor),
+                "w": int(f["w"] * scale_factor),
+                "h": int(f["h"] * scale_factor),
+            }
+            for f in faces
+        ]
         
         # ========================== Detect faces ==========================
-        print(f"Frame {frame_count}: Detected {len(faces)} faces")
+        print(f"Frame {frame_count}: Detected {len(faces_scaled)} faces")
 
         # ========================== Draw faces ==========================
-        frame_with_boxes = draw_boxes(frame, faces)
+        frame_with_boxes = draw_boxes(frame, faces_scaled)
         cv2.putText(
             frame_with_boxes,
-            f'Frame: {frame_count} | Faces: {len(faces)}',
+            f'Frame: {frame_count} | Faces: {len(faces_scaled)}',
             (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,

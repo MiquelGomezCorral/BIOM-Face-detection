@@ -56,6 +56,7 @@ class Configuration:
     detect_width: int = 1080
     camera_window_width: int = 1920
     camera_window_height: int = 1080
+    halve_size_factor: int = 1
 
     max_bg_samples: int = 20_000
     max_faces: int = 10_000

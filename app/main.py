@@ -44,6 +44,8 @@ if __name__ == "__main__":
     p_camera = subparsers.add_parser("detect-camera", help="Open the camera and detect faces in real-time")
     p_camera.add_argument("-c", "--crop-size", type=int, default=24, help="Crop size for face detection (default: 24)")
     p_camera.add_argument("-s", "--stride", type=int, default=1, help="Stride for face detection (default: 4)")
+    p_camera.add_argument("-hsf", "--halve-size-factor", type=int, default=1, help="Factor by which to halve the image size for detection (default: 1)")
+    p_camera.add_argument("-dw", "--detect-width", type=int, default=1080, help="Width of the detection window (default: 1080)")
     p_camera.add_argument("--camera-window-width", type=int, default=1920, help="Camera popup window width in pixels (default: 1920)")
     p_camera.add_argument("--camera-window-height", type=int, default=1080, help="Camera popup window height in pixels (default: 1080)")
     p_camera.add_argument('-ca', "--computed-haar-cascades-name", type=str, default="haar_cascade_stage_38_fpr_0.0002.xml", help="Computed Haar cascade filename to load (default: haar_cascade_stage_38_fpr_0.0002.xml)")
