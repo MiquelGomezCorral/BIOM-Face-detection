@@ -153,27 +153,43 @@ def generate_all_features(
                         
     return features
 
+def _extract_with_aug_and_precomputed(args):
+    img_path, augment_fn, precomputed = args
+    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        return None
+    img = augment_fn(img)
+    return extract_features(img=img, precomputed=precomputed)
+
 # =================================================================
 #                   MANAGE FEATURES FOR DATASET
 # =================================================================
-def compute_features_dataset(images_paths, all_features, n_workers=8):
-    chunksize = 8
-    # Precompute tensors once
+def compute_features_dataset(images_paths, all_features, n_workers=8, augment_fn=None):
+    chunksize = n_workers
     precomputed = precompute_feature_tensors(all_features)
 
-    # Bind precomputed tensors to extract_features function
-    extract_fn = partial(extract_features, precomputed=precomputed)
-
-    with mp.get_context("fork").Pool(processes=n_workers) as pool:
-        results_faces = list(
-            tqdm(
-                pool.imap(extract_fn, images_paths, chunksize=chunksize),
-                total=len(images_paths),
-                desc=f"Extracting face features ({n_workers} workers)",
+    if augment_fn is not None:
+        tasks = [(p, augment_fn, precomputed) for p in images_paths]
+        with mp.get_context("fork").Pool(processes=n_workers) as pool:
+            results_faces = list(
+                tqdm(
+                    pool.imap(_extract_with_aug_and_precomputed, tasks, chunksize=chunksize),
+                    total=len(images_paths),
+                    desc=f"Extracting face features ({n_workers} workers)",
+                )
             )
-        )
+    else:
+        extract_fn = partial(extract_features, precomputed=precomputed)
+        with mp.get_context("fork").Pool(processes=n_workers) as pool:
+            results_faces = list(
+                tqdm(
+                    pool.imap(extract_fn, images_paths, chunksize=chunksize),
+                    total=len(images_paths),
+                    desc=f"Extracting face features ({n_workers} workers)",
+                )
+            )
 
-    features = np.stack(results_faces, axis=0).astype(np.float32, copy=False)
+    features = np.stack([r for r in results_faces if r is not None], axis=0).astype(np.float32, copy=False)
     return features, precomputed
 
 def precompute_feature_tensors(features):
@@ -248,7 +264,7 @@ def _compute_features_vectorized(integral_img: np.ndarray, _R1, _C1, _R2, _C2, _
     return np.bincount(_FIDX, weights=vals * _W, minlength=_N_FEATURES).astype(np.float32)
 
 
-def extract_features_batch(imgs: list[np.ndarray], precomputed) -> np.ndarray:
+def extract_features_batch(imgs: list[np.ndarray], precomputed, augment_fn=None) -> np.ndarray:
     """
     Extract features for a list of crop images.
     Returns shape (n_crops, n_features).
@@ -257,6 +273,8 @@ def extract_features_batch(imgs: list[np.ndarray], precomputed) -> np.ndarray:
     
     results = np.empty((len(imgs), _N_FEATURES), dtype=np.float32)
     for i, img in enumerate(imgs):
+        if augment_fn is not None:
+            img = augment_fn(img)
         integral_img   = get_integral_image(img)
         integral_img_2 = get_integral_squared_image(img)
 

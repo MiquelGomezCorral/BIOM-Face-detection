@@ -97,7 +97,7 @@ def camera(CONFIG: Configuration):
         ]
         
         # ========================== Detect faces ==========================
-        print(f"Frame {frame_count}: Detected {len(faces_scaled)} faces")
+        # print(f"Frame {frame_count}: Detected {len(faces_scaled)} faces")
 
         # ========================== Draw faces ==========================
         frame_with_boxes = draw_boxes(frame, faces_scaled)

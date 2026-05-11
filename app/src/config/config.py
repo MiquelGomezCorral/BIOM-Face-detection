@@ -1,6 +1,6 @@
 import os
 from maikol_utils.file_utils import make_dirs
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class Configuration:
@@ -71,6 +71,26 @@ class Configuration:
     target_fpr: float = 0.005
     target_tpr: float = 0.985
     
+    stage_fpr_schedule: list = field(default_factory=lambda: [
+        (1, 2, 0.15),
+        (3, 5, 0.25),
+        (6, 10, 0.40),
+        (11, None, 0.50),
+    ])
+    
+
+    faces_aug: dict = field(default_factory=lambda: {
+        "contrast": 0.4,
+        "light": 0.3,
+        "blur": 0.2,
+        "noise": 0.2,
+    })
+    bg_aug: dict = field(default_factory=lambda: {
+        "noise": 0.8,
+        "light": 0.6,
+        "blur": 0.4,
+        "contrast": 0.1,
+    })
 
     def __post_init__(self):
         make_dirs([
@@ -86,3 +106,11 @@ class Configuration:
 
         
         self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
+
+    def get_stage_fpr(self, stage_num: int) -> float:
+        for start, end, fpr in self.stage_fpr_schedule:
+            if end is None and stage_num >= start:
+                return fpr
+            if start <= stage_num <= end:
+                return fpr
+        return self.stage_target_fpr

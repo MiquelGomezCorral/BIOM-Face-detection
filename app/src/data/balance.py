@@ -20,6 +20,7 @@ def balance_non_face_samples(
         stop_check_interval=100,
     predictor_halve_size=True,
     predictor_halve_size_factor=2,
+    augment_fn=None,
     ):
     
     stop_event = threading.Event()
@@ -69,7 +70,7 @@ def balance_non_face_samples(
             end = min(start + stop_check_interval, len(crops))
             chunk = crops[start:end]
             chunk_features = list(
-                extract_features_batch([c["img"] for c in chunk], precomputed=precomputed)
+                extract_features_batch([c["img"] for c in chunk], precomputed=precomputed, augment_fn=augment_fn)
             )
             if chunk_features:
                 # Stream chunk results so the main thread can update tqdm often.

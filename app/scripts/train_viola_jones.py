@@ -6,7 +6,7 @@ from maikol_utils.file_utils import list_dir_files
 
 import dataclasses
 from src.config import Configuration
-from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset, load_gb_images
+from src.data import balance_non_face_samples, precompute_feature_tensors, generate_all_features, compute_features_dataset, load_gb_images, create_face_augmentor, create_bg_augmentor, create_face_augmentor, create_bg_augmentor
 from src.model import (
     save_stages,
     save_stage_checkpoint,
@@ -51,6 +51,7 @@ def train_viola_jones_stages(CONFIG: Configuration):
     #                  PRECOMPUTE FACE FEATURES
     # ===============================================================
 
+    face_augmentor = create_face_augmentor(CONFIG)
     if os.path.exists(CONFIG.faces_np_path) and not CONFIG.force_features:
         print(f" - Loading precomputed face features from {CONFIG.faces_np_path}...")
         X_train_faces = np.load(CONFIG.faces_np_path)
@@ -58,7 +59,7 @@ def train_viola_jones_stages(CONFIG: Configuration):
         print(f" - Loaded face features for {X_train_faces.shape[0]} images.")
         print(f" - X_train_faces dtype={X_train_faces.dtype}, shape={X_train_faces.shape}")
     else:
-        X_train_faces, precomputed = compute_features_dataset(all_faces, all_features, n_workers=CONFIG.max_cpu_cores)
+        X_train_faces, precomputed = compute_features_dataset(all_faces, all_features, n_workers=CONFIG.max_cpu_cores, augment_fn=face_augmentor)
         np.save(CONFIG.faces_np_path, X_train_faces)
         print(f" - Computed face features for {X_train_faces.shape[0]} images.")
         print(f" - X_train_faces dtype={X_train_faces.dtype}, shape={X_train_faces.shape}")
@@ -109,6 +110,7 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         CONFIG, X_train_faces
     )
     
+    bg_augmentor = create_bg_augmentor(CONFIG)
     cascade = build_haar_cascade_from_stages(
         stages_output=stages,
         all_features=all_features,
@@ -125,12 +127,12 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
 
         X_train_bg = balance_non_face_samples(
             classifier=classifier,
-            # Only add enough new bg samples to maintain balance with faces
             num_samples=prev_n_faces - len(prev_fp) if CONFIG.preserve_fp else prev_n_faces, 
             bg_samples=bg_samples, 
             precomputed=precomputed,
             n_workers=CONFIG.max_cpu_cores,
-            stop_check_interval=CONFIG.stop_check_interval
+            stop_check_interval=CONFIG.stop_check_interval,
+            augment_fn=bg_augmentor,
         )
 
         if len(X_train_bg) == 0:
@@ -149,7 +151,9 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         del X_train_bg 
 
         print_separator("Training")
-        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=CONFIG.stage_target_fpr, target_tpr=CONFIG.target_tpr)
+        stage_fpr = CONFIG.get_stage_fpr(stage_num + 1)
+        print(f" - Stage {stage_num + 1} target FPR: {stage_fpr:.2%}")
+        clf, threshold = train_stage_early_stopping(X_train, y_train, max_cpu_cores=CONFIG.max_cpu_cores, max_features=CONFIG.max_features_per_stage, target_fpr=stage_fpr, target_tpr=CONFIG.target_tpr)
         stages.append((clf, threshold))
 
         cascade = build_haar_cascade_from_stages(

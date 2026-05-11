@@ -48,7 +48,7 @@ if __name__ == "__main__":
     p_camera.add_argument("-dw", "--detect-width", type=int, default=1080, help="Width of the detection window (default: 1080)")
     p_camera.add_argument("--camera-window-width", type=int, default=1920, help="Camera popup window width in pixels (default: 1920)")
     p_camera.add_argument("--camera-window-height", type=int, default=1080, help="Camera popup window height in pixels (default: 1080)")
-    p_camera.add_argument('-ca', "--computed-haar-cascades-name", type=str, default="haar_cascade_stage_38_fpr_0.0002.xml", help="Computed Haar cascade filename to load (default: haar_cascade_stage_38_fpr_0.0002.xml)")
+    p_camera.add_argument('-ca', "--computed-haar-cascades-name", type=str, default="haar_cascade_stage_33_fpr_0.0000.xml", help="Computed Haar cascade filename to load (default: haar_cascade_stage_33_fpr_0.0000.xml)")
     p_camera.set_defaults(func=cmd_detect_camera)
 
 
@@ -63,16 +63,12 @@ if __name__ == "__main__":
     p_train.add_argument("-rt", "--resume_training", default=True, action="store_false", help="Resume training from existing stages (default: True)")
     p_train.add_argument("-pfp", "--preserve_fp", default=True, action="store_false", help="Preserve false positives from previous stages (default: True)")
     p_train.add_argument("-mf", "--max_faces", type=int, default=-1, help="Maximum number of face samples (default: -1 for no limit)")
-    p_train.add_argument("-mb", "--max_bg_samples", type=int, default=15000, help="Maximum number of background samples (default: 15000)")
+    p_train.add_argument("-mb", "--max_bg_samples", type=int, default=150000, help="Maximum number of background samples (default: 15000)")
     p_train.add_argument("-sci", "--stop_check_interval", type=int, default=100, help="Interval at which to check for stopping conditions (default: 100)")
-
-    p_train.add_argument("-dw", "--detect_width", type=int, default=320, help="Width of the detection window (default: 320)")
-
 
     p_train.add_argument("-sf", "--subsample_factor", type=float, default=0.8, help="Subsampling factor for negative samples (default: 0.8)")
     p_train.add_argument("-n", "--normalize_window", type=int, default=3, help="Window size for feature normalization (default: 3)")
     p_train.add_argument("-mfs", "--max_features_per_stage", type=int, default=500, help="Maximum number of features per stage (default: 200)")
-    p_train.add_argument("-stf", "--stage_target_fpr", type=float, default=0.5, help="Target false positive rate for each stage (default: 0.5)")
     p_train.add_argument("-fpr", "--target_fpr", type=float, default=0.00001, help="Target false positive rate for training (default: 0.005)")
     p_train.add_argument("-tpr", "--target_tpr", type=float, default=0.99, help="Target true positive rate for training (default: 0.985)")
     p_train.add_argument("-ms", "--max_stages", type=int, default=100, help="Maximum number of stages to train (default: 50)")
