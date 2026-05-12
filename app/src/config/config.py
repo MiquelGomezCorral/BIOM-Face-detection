@@ -81,6 +81,7 @@ class Configuration:
         (11, None, 0.50),
     ])
     
+    use_augmentation: bool = True
 
     faces_aug: dict = field(default_factory=lambda: {
         "contrast": 0.4,
@@ -112,6 +113,10 @@ class Configuration:
 
         if not self.use_progresive_fpr:
             self.stage_fpr_schedule = [(0, None, 0.50)]
+
+        if not self.use_augmentation:
+            self.faces_aug = {}
+            self.bg_aug = {}
 
 
     def get_stage_fpr(self, stage_num: int) -> float:

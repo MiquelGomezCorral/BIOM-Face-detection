@@ -77,8 +77,8 @@ if __name__ == "__main__":
     p_train.add_argument("-fem", "--feature_edge_margin", type=int, default=0, help="Edge margin for feature computation (default: 1)")
 
     p_train.add_argument("-pf", "--use_progresive_fpr", default=True, action="store_false", help="Use progressive false possitive rate.")
+    p_train.add_argument("-aug", "--use_augmentation", default=True, action="store_false", help="Use data augmentation.")
     
-
 
     p_train.add_argument('-vpc', '--use_vpc_faces', default=False, action='store_true', help="Use the VPC faces dataset instead of WIDER (default: False)")
 
