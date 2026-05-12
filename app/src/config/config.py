@@ -25,6 +25,8 @@ class Configuration:
     faces_cv_passed_path: str = os.path.join(faces_original_path, "cv_passed")
     no_faces_path: str = os.path.join(viola_jones_path, "no_faces")
     no_faces_all_path: str = os.path.join(no_faces_path, "all")
+    no_faces_train_path: str = os.path.join(no_faces_path, "train")
+    no_faces_test_path: str = os.path.join(no_faces_path, "test")
     no_faces_crops_path: str = os.path.join(no_faces_path, "crops")
 
     faces_np_path: str = os.path.join(viola_jones_path, "faces.npy")
@@ -71,6 +73,7 @@ class Configuration:
     target_fpr: float = 0.005
     target_tpr: float = 0.985
     
+    use_progresive_fpr: bool = True
     stage_fpr_schedule: list = field(default_factory=lambda: [
         (1, 2, 0.15),
         (3, 5, 0.25),
@@ -106,6 +109,10 @@ class Configuration:
 
         
         self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
+
+        if not self.use_progresive_fpr:
+            self.stage_fpr_schedule = [(0, None, 0.50)]
+
 
     def get_stage_fpr(self, stage_num: int) -> float:
         for start, end, fpr in self.stage_fpr_schedule:
