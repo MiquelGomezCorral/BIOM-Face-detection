@@ -217,3 +217,9 @@ models_/*
 lightning_logs/*
 
 .vscode/*
+
+
+# Agents
+.agents/*
+AGENTS.md
+skills-lock.json
