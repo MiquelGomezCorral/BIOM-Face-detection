@@ -23,4 +23,4 @@ def load_gb_images(CONFIG: Configuration, partition="train"):
 
     # return [sample.filepath for sample in bg_dataset]
 
-    return list_dir_files(CONFIG.no_faces_all_path, max_files=CONFIG.max_bg_samples)[0] 
+    return list_dir_files(CONFIG.no_faces_train_path, max_files=CONFIG.max_bg_samples)[0] 
