@@ -19,7 +19,7 @@ def balance_non_face_samples(
         n_workers=8,
         stop_check_interval=100,
     predictor_halve_size=True,
-    predictor_halve_size_factor=2,
+    predictor_halve_size_factor=4,
     augment_fn=None,
     ):
     
