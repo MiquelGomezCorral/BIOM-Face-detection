@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
     p_train.add_argument("-pf", "--use_progresive_fpr", default=True, action="store_false", help="Use progressive false possitive rate.")
     p_train.add_argument("-aug", "--use_augmentation", default=True, action="store_false", help="Use data augmentation.")
-    
+    p_train.add_argument("-sqf", "--include_square_features", default=True, action="store_false", help="Include square features.")
 
     p_train.add_argument('-vpc', '--use_vpc_faces', default=False, action='store_true', help="Use the VPC faces dataset instead of WIDER (default: False)")
 

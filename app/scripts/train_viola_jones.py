@@ -30,7 +30,8 @@ def train_viola_jones_stages(CONFIG: Configuration):
         win_w = CONFIG.crop_size, 
         win_h = CONFIG.crop_size,
         edge_margin = CONFIG.feature_edge_margin,
-        stride = CONFIG.feature_stride
+        stride = CONFIG.feature_stride,
+        include_square_features = CONFIG.include_square_features,
     )
     print(f" - Generated {len(all_features)} features.")
 

@@ -82,7 +82,6 @@ class Configuration:
     ])
     
     use_augmentation: bool = True
-
     faces_aug: dict = field(default_factory=lambda: {
         "contrast": 0.4,
         "light": 0.3,
@@ -95,6 +94,8 @@ class Configuration:
         "blur": 0.4,
         "contrast": 0.1,
     })
+
+    include_square_features: bool = True
 
     def __post_init__(self):
         make_dirs([

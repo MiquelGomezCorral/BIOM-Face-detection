@@ -21,6 +21,7 @@ def generate_all_features(
     win_h: int = 24,
     edge_margin: int = 2,
     stride: int = 1,
+    include_square_features: bool = True,
 ) -> List[Feature]:
     features = []
 
@@ -39,6 +40,7 @@ def generate_all_features(
         2: (9,  4,  'w%3'),   # horizontal 3rect: mínimo 9x4
         3: (4,  9,  'h%3'),   # vertical 3rect:   mínimo 4x9
         4: (6,  6,  'wh%2'),  # diagonal 4rect:   mínimo 6x6
+        5: (6,  6,  'wh%3_square'),  # frame: square with inner square, min 9x9
     }
 
     def _get_xy_ranges(w: int, h: int):
@@ -150,7 +152,26 @@ def generate_all_features(
                             Rectangle(x + w_half, y + h_half, w_half, h_half, 1.0),
                         ],
                     ))
-                        
+
+    # 5: frame (outer square / inner square)
+    if include_square_features:
+        min_w, min_h, _ = type_constraints[5]
+        for w in range(min_w, min(win_w, win_h) + 1):
+            if w % 3 != 0:
+                continue
+            h = w  # enforce square
+            w_third = w // 3
+            x_range, y_range = _get_xy_ranges(w, h)
+            for x in x_range:
+                for y in y_range:
+                    features.append(Feature(
+                        feature_id=len(features),
+                        rectangles=[
+                            Rectangle(x,           y,           w,       h,       -1.0),
+                            Rectangle(x + w_third, y + w_third, w_third, w_third,  2.0),
+                        ],
+                    ))
+                            
     return features
 
 def _extract_with_aug_and_precomputed(args):
