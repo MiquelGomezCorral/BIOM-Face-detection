@@ -108,7 +108,8 @@ class Configuration:
         ])
 
         
-        self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
+        # self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
+        self.computed_haar_cascades_path = os.path.join(self.MODELS_PATH, 'haar_cascades_computed_best', self.computed_haar_cascades_name)
 
         if not self.use_progresive_fpr:
             self.stage_fpr_schedule = [(0, None, 0.50)]
