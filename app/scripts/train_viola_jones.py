@@ -132,8 +132,10 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
             bg_samples=bg_samples, 
             precomputed=precomputed,
             n_workers=CONFIG.max_cpu_cores,
+            crop_size=CONFIG.crop_size,
+            max_detections_per_image=1500,     
             stop_check_interval=CONFIG.stop_check_interval,
-            augment_fn=bg_augmentor,
+            augment_fn=None,
         )
 
         if len(X_train_bg) == 0:
@@ -167,6 +169,13 @@ def generate_all_stages(CONFIG: Configuration, X_train_faces, bg_samples, all_fe
         )
         classifier = CascadeClassifier(dataclasses.replace(CONFIG, stride=CONFIG.stride), cascade)
         fpr_macro = test_cascade_fpr(CONFIG, classifier)
+
+
+        # ===========================
+        
+        verify_cascade_vs_adaboost(clf, threshold, cascade, X_train, y_train, stage_idx=stage_num)
+
+        # ===========================
 
 
         # Save current stage's hard negatives
@@ -256,3 +265,105 @@ def train_stage_early_stopping(X_train, y_train, max_features=200, target_tpr=0.
         print_warn("Max features reached without hitting FPR target.")
 
     return clf, custom_threshold
+
+
+def verify_cascade_vs_adaboost(clf, threshold, cascade, X_train, y_train, stage_idx):
+    """
+    After training a stage, verify that the cascade kernel produces
+    identical accept/reject decisions to clf.decision_function on the
+    same feature vectors.
+
+    cascade: the HaarCascade object built from stages so far (including this stage)
+    stage_idx: 0-based index of the stage just trained (used to isolate it)
+    """
+    import numpy as np
+
+    X_neg = X_train[y_train == 0]
+    X_pos = X_train[y_train == 1]
+
+    # ── 1. AdaBoost scores ──────────────────────────────────────────────────
+    scores_neg = clf.decision_function(X_neg)
+    scores_pos = clf.decision_function(X_pos)
+
+    adaboost_fpr = float(np.mean(scores_neg >= threshold))
+    adaboost_tpr = float(np.mean(scores_pos >= threshold))
+
+    print(f"\n[Stage {stage_idx + 1}] AdaBoost direct:")
+    print(f"  threshold      : {threshold:.6f}")
+    print(f"  score range neg: [{scores_neg.min():.4f}, {scores_neg.max():.4f}]")
+    print(f"  score range pos: [{scores_pos.min():.4f}, {scores_pos.max():.4f}]")
+    print(f"  TPR            : {adaboost_tpr:.4f}  (target ~{0.99:.2f})")
+    print(f"  FPR            : {adaboost_fpr:.4f}  (target ~{0.50:.2f})")
+
+    # ── 2. Simulate the cascade stage on X_train feature vectors ───────────
+    # Re-implement the stage sum using the flat arrays from the classifier.
+    # This bypasses image loading entirely — uses the same feature vectors
+    # AdaBoost trained on, so any mismatch is purely in cascade construction.
+    stage = cascade.stages[stage_idx]
+    n_samples = X_neg.shape[0]
+    stage_sums = np.zeros(n_samples, dtype=np.float64)
+
+    for wc in stage.weak_classifiers:
+        feat_idx = wc.feature_id
+        if feat_idx >= X_neg.shape[1]:
+            print(f"  [ERROR] feature_id {feat_idx} out of range ({X_neg.shape[1]} features)")
+            continue
+
+        feat_vals = X_neg[:, feat_idx].astype(np.float64)
+
+        # NOTE: X_neg is already std-normalised, so clf_thr must NOT be
+        # multiplied by std here. The cascade kernel does feat < thr * std,
+        # but since feat here = raw_feat / std already, that is equivalent
+        # to (raw_feat / std) < thr, i.e. feat < thr — no std factor.
+        goes_left = feat_vals < wc.threshold
+        stage_sums += np.where(goes_left, wc.left_value, wc.right_value)
+
+    cascade_accepts_neg = stage_sums >= stage.threshold
+    cascade_fpr = float(np.mean(cascade_accepts_neg))
+
+    # Same for positives
+    stage_sums_pos = np.zeros(len(X_pos), dtype=np.float64)
+    for wc in stage.weak_classifiers:
+        feat_idx = wc.feature_id
+        if feat_idx >= X_pos.shape[1]:
+            continue
+        feat_vals = X_pos[:, feat_idx].astype(np.float64)
+        goes_left = feat_vals < wc.threshold
+        stage_sums_pos += np.where(goes_left, wc.left_value, wc.right_value)
+
+    cascade_tpr = float(np.mean(stage_sums_pos >= stage.threshold))
+
+    print(f"\n[Stage {stage_idx + 1}] Cascade simulation on same features:")
+    print(f"  stage.threshold: {stage.threshold:.6f}")
+    print(f"  stage_sum range neg: [{stage_sums.min():.4f}, {stage_sums.max():.4f}]")
+    print(f"  stage_sum range pos: [{stage_sums_pos.min():.4f}, {stage_sums_pos.max():.4f}]")
+    print(f"  TPR              : {cascade_tpr:.4f}")
+    print(f"  FPR              : {cascade_fpr:.4f}")
+
+    # ── 3. Agreement check ──────────────────────────────────────────────────
+    adaboost_accepts_neg = scores_neg >= threshold
+    agreement = float(np.mean(adaboost_accepts_neg == cascade_accepts_neg))
+    disagreements = int(np.sum(adaboost_accepts_neg != cascade_accepts_neg))
+
+    print(f"\n[Stage {stage_idx + 1}] Agreement:")
+    print(f"  sample-level agreement: {agreement:.6f}  ({disagreements} disagreements out of {n_samples})")
+
+    if disagreements > 0:
+        # Show a few disagreeing samples to understand the pattern
+        diff_idx = np.where(adaboost_accepts_neg != cascade_accepts_neg)[0][:5]
+        print(f"  First disagreeing samples:")
+        for idx in diff_idx:
+            print(f"    sample {idx}: adaboost_score={scores_neg[idx]:.4f} (>={threshold:.4f} = {adaboost_accepts_neg[idx]})"
+                  f" | cascade_sum={stage_sums[idx]:.4f} (>={stage.threshold:.4f} = {cascade_accepts_neg[idx]})")
+
+    if agreement < 0.999:
+        print(f"\n  [WARNING] AdaBoost and cascade disagree on >{1-agreement:.1%} of samples.")
+        print(f"  Likely cause: stage.threshold != clf threshold, or left/right_value sign/scale mismatch.")
+        print(f"  Check: clf threshold={threshold:.6f} vs stage.threshold={stage.threshold:.6f}")
+        # Check scale of left/right values vs alpha * ±1
+        wc0 = stage.weak_classifiers[0]
+        alpha0 = float(clf.estimator_weights_[0])
+        print(f"  First weak clf: left_value={wc0.left_value:.6f}, right_value={wc0.right_value:.6f}")
+        print(f"  Expected from alpha: ±{alpha0:.6f}")
+    else:
+        print(f"  [OK] Cascade and AdaBoost are in perfect agreement on training data.")
