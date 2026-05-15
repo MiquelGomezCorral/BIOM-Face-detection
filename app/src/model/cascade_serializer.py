@@ -141,7 +141,7 @@ def save_stages(CONFIG, stages, stage_num, fpr_macro, all_features):
         fpr_macro: Current macro false positive rate (for naming)
         all_features: Full list of generated Haar features
     """
-    filename = f'haar_cascade_stage_{stage_num}_fpr_{fpr_macro:.4f}.xml'
+    filename = f'haar_cascade_stage_{stage_num}_fpr_{fpr_macro:.10f}.xml'
     output_path = os.path.join(CONFIG.computed_haar_cascades, filename)
 
     cascade = build_haar_cascade_from_stages(
