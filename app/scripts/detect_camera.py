@@ -4,6 +4,7 @@ Uses OpenCV for optimal performance with inter-frame processing capability.
 """
 import os
 import cv2
+import time
 from src.model import load_cascade, CascadeClassifier
 from src.config import Configuration
 
@@ -69,6 +70,8 @@ def camera(CONFIG: Configuration):
     cv2.resizeWindow(window_name, CONFIG.camera_window_width, CONFIG.camera_window_height)
     
     frame_count = 0
+    fps = 0
+    start_time = time.time()
     print("Camera started. Press 'q' or ESC to quit.")
     
     while True:
@@ -101,27 +104,30 @@ def camera(CONFIG: Configuration):
 
         # ========================== Draw faces ==========================
         frame_with_boxes = draw_boxes(frame, faces_scaled)
+
+        elapsed = time.time() - start_time
+        if elapsed >= 1.0:
+            fps = frame_count / elapsed
+            frame_count = 0
+            start_time = time.time()
+
         cv2.putText(
             frame_with_boxes,
-            f'Frame: {frame_count} | Faces: {len(faces_scaled)}',
+            f'FPS: {fps:.1f} | Faces: {len(faces_scaled)}',
             (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
             1,
             (0, 255, 0),
             2
         )
-        
-        # ========================== Display frame ==========================
+
+        frame_count += 1
+
         cv2.imshow(window_name, frame_with_boxes)
-        
-        # ========================== Process keyboard input ==========================
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('q') or key == 27:  # 'q' or ESC
+        if key == ord('q') or key == 27:
             print(f"Exiting. Processed {frame_count} frames.")
             break
-        
-        frame_count += 1
-    
-    # Cleanup
+
     vc.release()
     cv2.destroyAllWindows()
