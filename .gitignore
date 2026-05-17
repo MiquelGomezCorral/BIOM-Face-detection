@@ -212,8 +212,8 @@ logs/*
 !logs/.gitkeep
 models/*
 !models/.gitkeep
-models_/*
-!models_/.gitkeep
+!models/haar_cascades_computed_best/
+!models/haar_cascades_computed_best/*
 lightning_logs/*
 
 .vscode/*

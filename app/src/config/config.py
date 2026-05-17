@@ -36,7 +36,7 @@ class Configuration:
     
     cv_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
     computed_haar_cascades: str =  os.path.join(MODELS_PATH,'haar_cascades_computed_best')
-    computed_haar_cascades_name: str = "haar_cascade_stage_18_fpr_0.0000000000_99_pfp.xml"
+    computed_haar_cascades_name: str = "haar_cascade_stage_21_fpr_0.0000000000_999_pfp.xml"
     computed_haar_cascades_path: str = os.path.join(computed_haar_cascades, computed_haar_cascades_name)
 
 
