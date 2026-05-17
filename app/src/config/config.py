@@ -35,8 +35,8 @@ class Configuration:
     MODELS_PATH: str = os.path.join("..", "models")
     
     cv_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades")
-    computed_haar_cascades: str = os.path.join(MODELS_PATH, "haar_cascades_computed_best_balanced_99")
-    computed_haar_cascades_name: str = "haar_cascade_stage_38_fpr_0.0002.xml"
+    computed_haar_cascades: str =  os.path.join(MODELS_PATH,'haar_cascades_computed_best')
+    computed_haar_cascades_name: str = "haar_cascade_stage_18_fpr_0.0000000000_99_pfp.xml"
     computed_haar_cascades_path: str = os.path.join(computed_haar_cascades, computed_haar_cascades_name)
 
 
@@ -109,7 +109,7 @@ class Configuration:
 
         
         # self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
-        self.computed_haar_cascades_path = os.path.join(self.MODELS_PATH, 'haar_cascades_computed_best', self.computed_haar_cascades_name)
+        self.computed_haar_cascades_path = os.path.join(self.computed_haar_cascades, self.computed_haar_cascades_name)
 
         if not self.use_progresive_fpr:
             self.stage_fpr_schedule = [(0, None, 0.50)]
