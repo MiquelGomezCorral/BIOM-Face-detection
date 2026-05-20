@@ -5,8 +5,38 @@ Uses OpenCV for optimal performance with inter-frame processing capability.
 import os
 import cv2
 import time
+import threading
+import numpy as np
 from src.model import load_cascade, CascadeClassifier
 from src.config import Configuration
+
+
+class ThreadedCamera:
+    """Continuously grabs frames in a background thread so vc.read() never blocks the main loop."""
+
+    def __init__(self, vc: cv2.VideoCapture):
+        self.vc = vc
+        self.frame = None
+        self.ret = False
+        self._lock = threading.Lock()
+        self._stopped = False
+        self._thread = threading.Thread(target=self._update, daemon=True)
+        self._thread.start()
+
+    def _update(self):
+        while not self._stopped:
+            ret, frame = self.vc.read()
+            with self._lock:
+                self.ret = ret
+                self.frame = frame
+
+    def read(self):
+        with self._lock:
+            return self.ret, self.frame.copy() if self.frame is not None else None
+
+    def stop(self):
+        self._stopped = True
+        self._thread.join()
 
 def start_detect_camera(CONFIG: Configuration):
     # Disable Qt GUI backend if no display is available
@@ -63,23 +93,32 @@ def camera(CONFIG: Configuration):
     # Read actual resolution set by camera
     actual_width = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH))
     actual_height = int(vc.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    print(f"Camera resolution set to: {actual_width}x{actual_height} (16:9)")
+    actual_fps = vc.get(cv2.CAP_PROP_FPS)
+    print(f"Camera resolution: {actual_width}x{actual_height} | Camera FPS: {actual_fps}")
     
+    # Threaded capture — main loop is no longer blocked by camera framerate
+    cam = ThreadedCamera(vc)
+
     window_name = 'Camera - Face Detection'
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, CONFIG.camera_window_width, CONFIG.camera_window_height)
     
     frame_count = 0
-    fps = 0
-    start_time = time.time()
+    fps = 0.0
+    fps_valid = False
+    start_time = None
+    fps_history = []
     print("Camera started. Press 'q' or ESC to quit.")
     
     while True:
-        rval, frame = vc.read()
+        rval, frame = cam.read()
         
-        if not rval:
-            print("ERROR: Failed to read frame")
-            break
+        if not rval or frame is None:
+            continue
+        
+        # Start timing from the first actual frame
+        if start_time is None:
+            start_time = time.time()
         
         # Convert to grayscale for detection
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -98,36 +137,55 @@ def camera(CONFIG: Configuration):
             }
             for f in faces
         ]
-        
-        # ========================== Detect faces ==========================
-        # print(f"Frame {frame_count}: Detected {len(faces_scaled)} faces")
 
-        # ========================== Draw faces ==========================
         frame_with_boxes = draw_boxes(frame, faces_scaled)
 
+        frame_count += 1
         elapsed = time.time() - start_time
         if elapsed >= 1.0:
             fps = frame_count / elapsed
+            # Discard the first sample — includes setup/warmup overhead
+            if fps_valid:
+                fps_history.append(fps)
+            fps_valid = True
             frame_count = 0
             start_time = time.time()
 
+        # Compute running stats
+        if fps_valid:
+            arr = np.array(fps_history)
+            avg_fps = arr.mean()
+            std_fps = arr.std()
+        else:
+            avg_fps = std_fps = 0.0
+
+        label = f'FPS: {fps:.1f} | Avg: {avg_fps:.1f} | Std: {std_fps:.2f} | Faces: {len(faces_scaled)}' if fps_valid else f'Warming up... | Faces: {len(faces_scaled)}'
         cv2.putText(
             frame_with_boxes,
-            f'FPS: {fps:.1f} | Faces: {len(faces_scaled)}',
+            label,
             (10, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
-            1,
+            0.7,
             (0, 255, 0),
             2
         )
 
-        frame_count += 1
-
         cv2.imshow(window_name, frame_with_boxes)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q') or key == 27:
-            print(f"Exiting. Processed {frame_count} frames.")
             break
 
+    # Print final stats
+    if fps_history:
+        arr = np.array(fps_history)
+        print(f"\n--- FPS Stats ({len(arr)} samples) ---")
+        print(f"  Avg: {arr.mean():.2f}")
+        print(f"  Std: {arr.std():.2f}")
+        print(f"  Min: {arr.min():.2f}")
+        print(f"  Max: {arr.max():.2f}")
+    else:
+        print("No FPS samples collected.")
+
+    cam.stop()
     vc.release()
     cv2.destroyAllWindows()
