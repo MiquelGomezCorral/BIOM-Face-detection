@@ -214,6 +214,7 @@ models/*
 !models/.gitkeep
 !models/haar_cascades_computed_best/
 !models/haar_cascades_computed_best/*
+!data/dataset_classes.json
 lightning_logs/*
 
 .vscode/*
@@ -223,3 +224,4 @@ lightning_logs/*
 .agents/*
 AGENTS.md
 skills-lock.json
+.codegraph
