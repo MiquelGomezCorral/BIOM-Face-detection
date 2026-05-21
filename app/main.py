@@ -48,7 +48,7 @@ if __name__ == "__main__":
     p_camera.add_argument("-dw", "--detect-width", type=int, default=1080, help="Width of the detection window (default: 1080)")
     p_camera.add_argument("--camera-window-width", type=int, default=1920, help="Camera popup window width in pixels (default: 1920)")
     p_camera.add_argument("--camera-window-height", type=int, default=1080, help="Camera popup window height in pixels (default: 1080)")
-    p_camera.add_argument('-ca', "--computed-haar-cascades-name", type=str, default="haar_cascade_stage_18_fpr_0.0000000000_99_pfp.xml", help="Computed Haar cascade filename to load (default: haar_cascade_stage_18_fpr_0.0000000000_99_pfp.xml)")
+    p_camera.add_argument('-ca', "--computed-haar-cascades-name", type=str, default="haar_cascade_stage_28_fpr_0.0000000000_999.xml", help="Computed Haar cascade filename to load from models/haar_cascades_computed_best (default: haar_cascade_stage_28_fpr_0.0000000000_999.xml)")
     p_camera.set_defaults(func=cmd_detect_camera)
 
 
