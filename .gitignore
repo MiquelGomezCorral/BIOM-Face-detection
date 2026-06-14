@@ -212,8 +212,6 @@ logs/*
 !logs/.gitkeep
 models/*
 !models/.gitkeep
-!models/haar_cascades_computed_best/
-!models/haar_cascades_computed_best/*
 !data/dataset_classes.json
 lightning_logs/*
 
@@ -225,3 +223,35 @@ lightning_logs/*
 AGENTS.md
 skills-lock.json
 .codegraph
+# --- paper/ LaTeX auxiliary and build files ---
+*.aux
+*.log
+*.out
+*.toc
+*.lot
+*.lof
+*.fls
+*.fdb_latexmk
+*.run.xml
+*.synctex.gz
+*.bbl
+*.blg
+*.idx
+*.ind
+*.ilg
+*.inx
+*.glo
+*.gls
+*.glsdefs
+*.ist
+*.brf
+*.maf
+*.mtc*
+*.nav
+*.snm
+*.vrb
+*.xdv
+*.bcf
+_minted-*/
+*.bbl-SAVE-ERROR
+*.bcf-SAVE-ERROR
