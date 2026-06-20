@@ -1,0 +1,17 @@
+title:
+  en: Custom Viola-Jones Face Detection with Parallel Haar Cascade
+  es: Detección Facial Viola-Jones con Clasificador Haar en Cascada Paralelizado
+finished: finished
+descriptionShort:
+  en: Custom Viola-Jones face detection system with a parallelized Haar cascade classifier. Trained via AdaBoost with hard negative mining on WIDER FACE. Supports Numba JIT (5-10x speedup) with a threaded NumPy fallback. Real-time webcam detection included.
+  es: Sistema personalizado de detección facial Viola-Jones con clasificador en cascada Haar paralelizado. Entrenado mediante AdaBoost con hard negative mining sobre WIDER FACE. Compatible con Numba JIT (5-10x aceleración) y fallback con NumPy multihilo. Incluye detección en tiempo real por webcam.
+descriptionLong:
+  en: |
+    Full from-scratch implementation of the Viola-Jones face detection framework. The cascade classifier is trained stage-by-stage using AdaBoost on Haar-like features with hard negative mining. The detector supports parallel execution via Numba JIT compilation (5-10x inference speedup) with a ThreadPoolExecutor fallback. Trained on WIDER FACE dataset with 15,000 face samples. Best cascades reach 28 stages with 0.999 TPR. Includes real-time webcam detection, XML serialization compatible with OpenCV, and comprehensive Jupyter notebooks for ROC analysis and cascade inspection.
+  es: |
+    Implementación completa desde cero del framework de detección facial Viola-Jones. El clasificador en cascada se entrena etapa por etapa usando AdaBoost sobre características Haar con hard negative mining. El detector soporta ejecución paralela mediante compilación Numba JIT (5-10x de aceleración) con fallback ThreadPoolExecutor. Entrenado sobre WIDER FACE con 15,000 muestras de caras. Las mejores cascadas alcanzan 28 etapas con 0.999 TPR. Incluye detección en tiempo real por webcam, serialización XML compatible con OpenCV, y notebooks Jupyter para análisis ROC e inspección de cascadas.
+technologies: [python, opencv, numpy, jupyter]
+tags: [class]
+slug: BIOM-Face-detection
+order: 88
+featured: false
