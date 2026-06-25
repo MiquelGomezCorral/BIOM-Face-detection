@@ -22,11 +22,15 @@ screenShoots:
   - readme_images/output (3).png
   - readme_images/output (4).png
   - readme_images/thumbnail.webp
+date:
+  en: Mar 2026
+  es: Mar 2026
 keywords:
   en: [face detection, Viola-Jones, Haar cascade, AdaBoost, real-time detection, webcam, WIDER FACE, integral image, hard negative mining, object detection, biometric, cascade classifier, computer vision]
   es: [detección facial, Viola-Jones, cascada Haar, AdaBoost, detección en tiempo real, webcam, WIDER FACE, imagen integral, minería de negativos, detección de objetos, biometría, clasificador en cascada, visión por computador]
 slug: BIOM-Face-detection
 order: 88
 featured: false
+
 
 
