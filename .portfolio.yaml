@@ -1,6 +1,6 @@
 title:
-  en: Custom Viola-Jones Face Detection with Parallel Haar Cascade
-  es: Detección Facial Viola-Jones con Clasificador Haar en Cascada Paralelizado
+  en: Custom Viola-Jones Face Detection from Scratch
+  es: Detección Facial Viola-Jones desde Cero
 finished: finished
 descriptionShort:
   en: Custom Viola-Jones face detection system with a parallelized Haar cascade classifier. Trained via AdaBoost with hard negative mining on WIDER FACE. Supports Numba JIT (5-10x speedup) with a threaded NumPy fallback. Real-time webcam detection included.
