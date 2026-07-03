@@ -12,16 +12,16 @@ descriptionLong:
     Implementación completa desde cero del framework de detección facial Viola-Jones. El clasificador en cascada se entrena etapa por etapa usando AdaBoost sobre características Haar con hard negative mining. El detector soporta ejecución paralela mediante compilación Numba JIT (5-10x de aceleración) con fallback ThreadPoolExecutor. Entrenado sobre WIDER FACE con 15,000 muestras de caras. Las mejores cascadas alcanzan 28 etapas con 0.999 TPR. Incluye detección en tiempo real por webcam, serialización XML compatible con OpenCV, y notebooks Jupyter para análisis ROC e inspección de cascadas.
 technologies: [ai, jupyter, latex, matplot, numpy, opencv, pandas, plotly, python, sklearn]
 tags: [class]
-logo: readme_images/FP-TP-Progresion.png
+logo: readme_images/thumbnail_169.png
 screenShoots:
-  - readme_images/FP-TP-Progresion.png
-  - readme_images/base-filters.png
-  - readme_images/first-Stage.png
-  - readme_images/output (1).png
-  - readme_images/output (2).png
-  - readme_images/output (3).png
-  - readme_images/output (4).png
-  - readme_images/thumbnail.webp
+  - readme_images/FP-TP-Progresion_169.png
+  - readme_images/base-filters_169.png
+  - readme_images/first-Stage_169.png
+  - readme_images/output (1)_169.png
+  - readme_images/output (2)_169.png
+  - readme_images/output (3)_169.png
+  - readme_images/output (4)_169.png
+  - readme_images/thumbnail_169.png
 date:
   en: Mar 2026
   es: Mar 2026
@@ -31,7 +31,6 @@ keywords:
 slug: BIOM-Face-detection
 relevancy: 78
 featured: false
-
 
 
 

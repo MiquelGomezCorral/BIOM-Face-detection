@@ -243,3 +243,16 @@ Todas las cascadas en `models/haar_cascades_computed_best/` fueron entrenadas co
 [WIDER FACE](http://shuoyang1213.me/WIDERFACE/) — benchmark de detección facial a gran escala.
 
 *Mantenido por [MiquelGomezCorral](https://miquelgc.net)*
+
+---
+
+<!-- portfolio-gallery:start -->
+## Gallery
+
+<p align="center">
+  <img src="readme_images/FP-TP-Progresion_169.png" width="48%" />
+  <img src="readme_images/base-filters_169.png" width="48%" />
+  <img src="readme_images/first-Stage_169.png" width="48%" />
+  <img src="readme_images/output%20(1)_169.png" width="48%" />
+</p>
+<!-- portfolio-gallery:end -->
