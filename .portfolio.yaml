@@ -13,6 +13,7 @@ descriptionLong:
 technologies: [ai, jupyter, latex, matplot, numpy, opencv, pandas, plotly, python, sklearn]
 tags: [class]
 logo: readme_images/thumbnail_169.png
+gif: readme_images/ViolaJones-short.gif
 screenShoots:
   - readme_images/FP-TP-Progresion_169.png
   - readme_images/base-filters_169.png
@@ -22,6 +23,8 @@ screenShoots:
   - readme_images/output (3)_169.png
   - readme_images/output (4)_169.png
   - readme_images/thumbnail_169.png
+  - readme_images/ViolaJones-short.gif
+
 date:
   en: Mar 2026
   es: Mar 2026

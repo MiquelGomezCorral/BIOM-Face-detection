@@ -250,9 +250,14 @@ Todas las cascadas en `models/haar_cascades_computed_best/` fueron entrenadas co
 ## Gallery
 
 <p align="center">
-  <img src="readme_images/FP-TP-Progresion_169.png" width="48%" />
-  <img src="readme_images/base-filters_169.png" width="48%" />
-  <img src="readme_images/first-Stage_169.png" width="48%" />
-  <img src="readme_images/output%20(1)_169.png" width="48%" />
+  <img src="readme_images/ViolaJones-short.gif" alt="ViolaJones short" width="48%" />
+  <img src="readme_images/thumbnail_169.png" alt="thumbnail" width="48%" />
+  <img src="readme_images/base-filters_169.png" alt="base filters" width="48%" />
+  <img src="readme_images/first-Stage_169.png" alt="first Stage" width="48%" />
+  <img src="readme_images/FP-TP-Progresion_169.png" alt="FP TP Progresion" width="48%" />
+  <img src="readme_images/output%20(1)_169.png" alt="output (1)" width="48%" />
+  <img src="readme_images/output%20(2)_169.png" alt="output (2)" width="48%" />
+  <img src="readme_images/output%20(3)_169.png" alt="output (3)" width="48%" />
+  <img src="readme_images/output%20(4)_169.png" alt="output (4)" width="48%" />
 </p>
 <!-- portfolio-gallery:end -->
